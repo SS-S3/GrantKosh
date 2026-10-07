@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GrantKosh — Open Grant Directory for Indian Founders</title>
+  <meta name="description" content="A free, open-source, community-maintained directory of grants, schemes, challenges and loans for Indian startups. No sign-up, no paywall.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead-row">
+      <a class="brand" href="#">Grant<span>Kosh</span></a>
+      <nav>
+        <a href="#about">About</a>
+        <a href="data/grants.json" download>Download data</a>
+        <a id="repo-link" href="https://github.com/" target="_blank" rel="noopener">GitHub ↗</a>
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark mode">◐</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <p class="eyebrow">Free · Open source · No sign-up</p>
+      <h1>Non-dilutive money for Indian founders, in one open ledger.</h1>
+      <p class="lede">Government grants, defence challenges, state schemes and startup loans — every entry links to the official source and shows when it was last checked. Anyone can fix or add a listing with a pull request.</p>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="controls" aria-label="Search and filters">
+      <div class="search-row">
+        <input id="q" type="search" placeholder="Search schemes, ministries, sectors…" autocomplete="off">
+        <select id="sort" aria-label="Sort">
+          <option value="amount-desc">Largest ticket first</option>
+          <option value="amount-asc">Smallest ticket first</option>
+          <option value="name">A → Z</option>
+          <option value="verified">Recently verified first</option>
+        </select>
+      </div>
+
+      <div class="chips" id="quick-chips" role="group" aria-label="Quick filters"></div>
+
+      <details class="filters" id="filter-panel">
+        <summary>More filters <span id="active-count"></span></summary>
+        <div class="filter-grid">
+          <label>Type <select id="f-type"><option value="">Any</option></select></label>
+          <label>Stage <select id="f-stage"><option value="">Any</option></select></label>
+          <label>Sector <select id="f-sector"><option value="">Any</option></select></label>
+          <label>State <select id="f-state"><option value="">Any</option></select></label>
+          <label>Founder <select id="f-founder"><option value="">Any</option></select></label>
+          <label>Min. ticket
+            <select id="f-min">
+              <option value="0">Any</option>
+              <option value="1000000">₹10L+</option>
+              <option value="2500000">₹25L+</option>
+              <option value="10000000">₹1Cr+</option>
+              <option value="100000000">₹10Cr+</option>
+            </select>
+          </label>
+        </div>
+        <button id="reset" class="link-btn">Clear all filters</button>
+      </details>
+    </section>
+
+    <p class="result-meta" id="result-meta" aria-live="polite"></p>
+    <ol class="ledger" id="list"></ol>
+
+    <section class="about" id="about">
+      <h2>About this project</h2>
+      <p>GrantKosh is a plain static site: one JSON file of programs and a few hundred lines of JavaScript. There is no account, tracking, or paywall. The data is released under CC BY 4.0 and the code under MIT, so you can fork it, embed it, or build your own tools on top.</p>
+      <p><strong>Always confirm on the official portal before applying.</strong> Schemes change amounts, reopen and close without notice. Entries marked <span class="tag tag-warn">Needs check</span> haven't been verified against the source by a maintainer yet.</p>
+      <p>GrantKosh is not affiliated with any government body.</p>
+    </section>
+  </main>
+
+  <dialog id="detail">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <div id="detail-body"></div>
+  </dialog>
+
+  <footer class="wrap footer">
+    <span>Data: CC BY 4.0 · Code: MIT</span>
+    <a id="suggest-link" href="#" target="_blank" rel="noopener">Suggest a program or correction ↗</a>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
