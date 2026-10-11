@@ -1,0 +1,28 @@
+{
+  "name": "grantkosh",
+  "private": true,
+  "description": "Open directory of grants, government schemes and investors, built by a polite multi-source scraper.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "scraper",
+    "web",
+    "agent"
+  ],
+  "scripts": {
+    "scrape": "npm run scrape -w scraper --",
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web && node scripts/compress.mjs",
+    "preview": "npm run preview -w web",
+    "test": "npm test -w scraper && npm test -w agent",
+    "typecheck": "npm run typecheck -w scraper && npm run typecheck -w web && npm run typecheck -w agent",
+    "validate": "node scripts/validate.mjs",
+    "dev:agent": "npm run dev -w agent",
+    "start": "node agent/dist/server.mjs",
+    "build:agent": "npm run build -w agent",
+    "build:prod": "npm run build && npm run build:agent"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}

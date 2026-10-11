@@ -1,0 +1,28 @@
+# Render Blueprint: Dashboard → New → Blueprint → pick this repo.
+# Starter plan (US$7/month) never sleeps and gives zero-downtime deploys gated on the health check.
+# To run for free instead, set `plan: free`: the service then sleeps after ~15 min idle and the
+# first visit after that takes ~30-60 s to wake.
+services:
+  - name: grantkosh
+    type: web
+    runtime: node
+    plan: starter
+    region: singapore # closest Render region to India
+    buildCommand: npm ci --no-audit --no-fund && npm run build:prod
+    startCommand: npm start
+    healthCheckPath: /api/health
+    # Redeploys on every push, including the daily data commit from .github/workflows/scrape.yml.
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: GEMINI_API_KEY
+        sync: false # prompted once in the dashboard; never stored in the repo
+      - key: GEMINI_MODELS
+        value: gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADVISOR_PER_IP_LIMIT
+        value: "12"
+      - key: ADVISOR_DAILY_LIMIT
+        value: "400"

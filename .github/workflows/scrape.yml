@@ -1,0 +1,62 @@
+name: Scrape and deploy
+on:
+  schedule:
+    - cron: "30 0 * * *" # 06:00 IST daily
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["web/**", "data/curated/**"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Scrape
+        if: github.event_name != 'push'
+        env:
+          TZ: Asia/Kolkata
+        # Exit code 1 means some source failed and kept its last good data; publish anyway.
+        run: npm run scrape || [ $? -eq 1 ]
+      - name: Commit data
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "grantkosh-bot"
+          git config user.email "grantkosh-bot@users.noreply.github.com"
+          git add web/public/data data/state
+          git diff --cached --quiet || git commit -m "data: daily scrape $(date +%F)"
+          git push
+      # Static GitHub Pages copy (guided matching only, no AI). Enable with repo variable DEPLOY_PAGES=true.
+      # Render/Docker deployments redeploy from the data commit above instead.
+      - if: vars.DEPLOY_PAGES == 'true'
+        run: npm run build
+      - if: vars.DEPLOY_PAGES == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: scrape
+    if: vars.DEPLOY_PAGES == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+.cache
+.git
+.github
+.claude
+data/state
+scraper/test
+agent/test
+agent/.env
+**/*.log
+.DS_Store

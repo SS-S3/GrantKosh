@@ -1,15 +1,38 @@
-name: Validate data
+name: Test
 on:
   pull_request:
-    paths: ["data/**"]
   push:
     branches: [main]
 jobs:
-  validate:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: node scripts/validate.mjs
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run validate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:prod
+      - name: Smoke-test the production server
+        run: |
+          PORT=8080 node agent/dist/server.mjs &
+          for i in $(seq 1 20); do curl -fsS localhost:8080/api/health && break; sleep 0.5; done
+          curl -fsS -o /dev/null localhost:8080/
+          curl -fsS -o /dev/null -H 'Accept-Encoding: br' localhost:8080/data/opportunities.json
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t grantkosh:ci .
+      - name: Run and probe
+        run: |
+          docker run -d --name gk -p 8080:8080 grantkosh:ci
+          for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && break; sleep 1; done
+          curl -fsS -o /dev/null localhost:8080/
+          docker logs gk

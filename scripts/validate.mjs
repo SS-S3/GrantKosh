@@ -1,4 +1,4 @@
-// Validates data/grants.json. Run: node scripts/validate.mjs
+// Validates data/curated/grants.json. Run: node scripts/validate.mjs
 import { readFileSync } from "node:fs";
 
 const TYPES = ["grant", "challenge", "loan", "subsidy", "fellowship", "accelerator", "international"];
@@ -6,7 +6,7 @@ const STAGES = ["idea", "prototype", "early-revenue", "growth"];
 const FOUNDERS = ["any", "women", "sc-st", "student", "researcher"];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const data = JSON.parse(readFileSync(new URL("../data/grants.json", import.meta.url)));
+const data = JSON.parse(readFileSync(new URL("../data/curated/grants.json", import.meta.url)));
 const errors = [];
 const ids = new Set();
 const err = (g, msg) => errors.push(`[${g.id ?? "?"}] ${msg}`);
