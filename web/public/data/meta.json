@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-08T05:33:52.095Z",
-  "opportunities": 5610,
-  "investors": 2034,
+  "generatedAt": "2026-10-12T06:19:24.888Z",
+  "opportunities": 5605,
+  "investors": 2031,
   "sources": [
     {
       "id": "curated",
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 34,
+      "durationMs": 93,
       "error": null,
-      "lastSuccess": "2026-10-07T21:47:43.505Z"
+      "lastSuccess": "2026-10-12T06:13:15.038Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 12204,
+      "durationMs": 16651,
       "error": null,
-      "lastSuccess": "2026-10-07T21:47:55.675Z"
+      "lastSuccess": "2026-10-12T06:13:31.597Z"
     },
     {
       "id": "idex",
@@ -41,9 +41,9 @@
       "stale": false,
       "count": 34,
       "rejected": 0,
-      "durationMs": 27387,
+      "durationMs": 28997,
       "error": null,
-      "lastSuccess": "2026-10-07T21:48:10.859Z"
+      "lastSuccess": "2026-10-12T06:13:43.945Z"
     },
     {
       "id": "myscheme",
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1094,
+      "count": 1095,
       "rejected": 0,
-      "durationMs": 24987,
+      "durationMs": 33636,
       "error": null,
-      "lastSuccess": "2026-10-08T05:33:51.996Z"
+      "lastSuccess": "2026-10-12T06:13:48.585Z"
     },
     {
       "id": "ukri",
@@ -67,11 +67,11 @@
       "description": "Open and upcoming UK Research and Innovation and Innovate UK funding opportunities.",
       "ok": true,
       "stale": false,
-      "count": 145,
+      "count": 151,
       "rejected": 0,
-      "durationMs": 14221,
+      "durationMs": 13903,
       "error": null,
-      "lastSuccess": "2026-10-07T21:47:57.693Z"
+      "lastSuccess": "2026-10-12T06:13:28.852Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 488,
+      "count": 478,
       "rejected": 0,
-      "durationMs": 24275,
+      "durationMs": 21410,
       "error": null,
-      "lastSuccess": "2026-10-07T22:40:23.099Z"
+      "lastSuccess": "2026-10-12T06:13:36.360Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1466,
+      "count": 1464,
       "rejected": 0,
-      "durationMs": 374717,
+      "durationMs": 369771,
       "error": null,
-      "lastSuccess": "2026-10-07T21:53:58.190Z"
+      "lastSuccess": "2026-10-12T06:19:24.722Z"
     },
     {
       "id": "discovered",
@@ -107,12 +107,12 @@
       "kind": "opportunities",
       "homepage": "https://www.startupgrantsindia.com/",
       "description": "Programs found through the startupgrantsindia.com public sitemap (name, funder and official link only). All other details come from each program's official page.",
-      "ok": true,
-      "stale": false,
-      "count": 2934,
+      "ok": false,
+      "stale": true,
+      "count": 2358,
       "rejected": 0,
-      "durationMs": 27536,
-      "error": null,
+      "durationMs": 1048,
+      "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
     {
@@ -123,11 +123,11 @@
       "description": "Every SEBI-registered Alternative Investment Fund: venture capital, angel, private equity, venture debt and other funds.",
       "ok": true,
       "stale": false,
-      "count": 2034,
+      "count": 2031,
       "rejected": 0,
-      "durationMs": 63316,
+      "durationMs": 64363,
       "error": null,
-      "lastSuccess": "2026-10-07T21:48:46.789Z"
+      "lastSuccess": "2026-10-12T06:14:19.315Z"
     }
   ],
   "fxToInr": {
