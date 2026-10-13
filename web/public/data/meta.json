@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-12T06:19:24.888Z",
-  "opportunities": 5605,
+  "generatedAt": "2026-10-13T07:01:51.005Z",
+  "opportunities": 5604,
   "investors": 2031,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 93,
+      "durationMs": 68,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:15.038Z"
+      "lastSuccess": "2026-10-13T06:55:41.427Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 16651,
+      "durationMs": 16322,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:31.597Z"
+      "lastSuccess": "2026-10-13T06:55:57.682Z"
     },
     {
       "id": "idex",
@@ -41,9 +41,9 @@
       "stale": false,
       "count": 34,
       "rejected": 0,
-      "durationMs": 28997,
+      "durationMs": 28753,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:43.945Z"
+      "lastSuccess": "2026-10-13T06:56:10.114Z"
     },
     {
       "id": "myscheme",
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1095,
+      "count": 1094,
       "rejected": 0,
-      "durationMs": 33636,
+      "durationMs": 35119,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:48.585Z"
+      "lastSuccess": "2026-10-13T06:56:16.480Z"
     },
     {
       "id": "ukri",
@@ -67,11 +67,11 @@
       "description": "Open and upcoming UK Research and Innovation and Innovate UK funding opportunities.",
       "ok": true,
       "stale": false,
-      "count": 151,
+      "count": 152,
       "rejected": 0,
-      "durationMs": 13903,
+      "durationMs": 14022,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:28.852Z"
+      "lastSuccess": "2026-10-13T06:55:55.384Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 478,
+      "count": 479,
       "rejected": 0,
-      "durationMs": 21410,
+      "durationMs": 14588,
       "error": null,
-      "lastSuccess": "2026-10-12T06:13:36.360Z"
+      "lastSuccess": "2026-10-13T06:55:55.950Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1464,
+      "count": 1462,
       "rejected": 0,
-      "durationMs": 369771,
+      "durationMs": 369453,
       "error": null,
-      "lastSuccess": "2026-10-12T06:19:24.722Z"
+      "lastSuccess": "2026-10-13T07:01:50.816Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 1048,
+      "durationMs": 1162,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2031,
       "rejected": 0,
-      "durationMs": 64363,
+      "durationMs": 63784,
       "error": null,
-      "lastSuccess": "2026-10-12T06:14:19.315Z"
+      "lastSuccess": "2026-10-13T06:56:45.148Z"
     }
   ],
   "fxToInr": {
