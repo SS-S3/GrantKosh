@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-18T04:55:58.844Z",
-  "opportunities": 5599,
+  "generatedAt": "2026-10-19T05:04:00.885Z",
+  "opportunities": 5598,
   "investors": 2035,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 54,
+      "durationMs": 90,
       "error": null,
-      "lastSuccess": "2026-10-18T04:49:48.665Z"
+      "lastSuccess": "2026-10-19T04:57:52.281Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 18119,
+      "durationMs": 27128,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:06.731Z"
+      "lastSuccess": "2026-10-19T04:58:19.320Z"
     },
     {
       "id": "idex",
@@ -41,9 +41,9 @@
       "stale": false,
       "count": 34,
       "rejected": 0,
-      "durationMs": 29489,
+      "durationMs": 27377,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:18.102Z"
+      "lastSuccess": "2026-10-19T04:58:19.570Z"
     },
     {
       "id": "myscheme",
@@ -55,9 +55,9 @@
       "stale": false,
       "count": 1095,
       "rejected": 0,
-      "durationMs": 35411,
+      "durationMs": 36836,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:24.025Z"
+      "lastSuccess": "2026-10-19T04:58:29.030Z"
     },
     {
       "id": "ukri",
@@ -69,9 +69,9 @@
       "stale": false,
       "count": 153,
       "rejected": 0,
-      "durationMs": 19377,
+      "durationMs": 14657,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:07.991Z"
+      "lastSuccess": "2026-10-19T04:58:06.851Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 477,
+      "count": 476,
       "rejected": 0,
-      "durationMs": 19323,
+      "durationMs": 21232,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:07.937Z"
+      "lastSuccess": "2026-10-19T04:58:13.426Z"
     },
     {
       "id": "grants-gov",
@@ -97,9 +97,9 @@
       "stale": false,
       "count": 1457,
       "rejected": 0,
-      "durationMs": 370108,
+      "durationMs": 368504,
       "error": null,
-      "lastSuccess": "2026-10-18T04:55:58.723Z"
+      "lastSuccess": "2026-10-19T05:04:00.700Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 3344,
+      "durationMs": 1070,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2035,
       "rejected": 0,
-      "durationMs": 65180,
+      "durationMs": 63982,
       "error": null,
-      "lastSuccess": "2026-10-18T04:50:53.795Z"
+      "lastSuccess": "2026-10-19T04:58:56.179Z"
     }
   ],
   "fxToInr": {
