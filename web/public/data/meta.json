@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-28T06:04:28.913Z",
-  "opportunities": 5603,
+  "generatedAt": "2026-10-29T06:11:18.115Z",
+  "opportunities": 5607,
   "investors": 2048,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 68,
+      "durationMs": 80,
       "error": null,
-      "lastSuccess": "2026-10-28T05:58:19.097Z"
+      "lastSuccess": "2026-10-29T06:05:05.955Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 17506,
+      "durationMs": 17681,
       "error": null,
-      "lastSuccess": "2026-10-28T05:58:36.537Z"
+      "lastSuccess": "2026-10-29T06:05:23.557Z"
     },
     {
       "id": "idex",
@@ -41,7 +41,7 @@
       "stale": true,
       "count": 33,
       "rejected": 0,
-      "durationMs": 60882,
+      "durationMs": 11620,
       "error": "fetch failed",
       "lastSuccess": "2026-10-22T05:06:35.935Z"
     },
@@ -55,9 +55,9 @@
       "stale": false,
       "count": 1095,
       "rejected": 0,
-      "durationMs": 34654,
+      "durationMs": 33117,
       "error": null,
-      "lastSuccess": "2026-10-28T05:58:53.686Z"
+      "lastSuccess": "2026-10-29T06:05:38.995Z"
     },
     {
       "id": "ukri",
@@ -67,11 +67,11 @@
       "description": "Open and upcoming UK Research and Innovation and Innovate UK funding opportunities.",
       "ok": true,
       "stale": false,
-      "count": 148,
+      "count": 144,
       "rejected": 0,
-      "durationMs": 12962,
+      "durationMs": 13009,
       "error": null,
-      "lastSuccess": "2026-10-28T05:58:31.994Z"
+      "lastSuccess": "2026-10-29T06:05:18.887Z"
     },
     {
       "id": "eu-funding",
@@ -79,12 +79,12 @@
       "kind": "opportunities",
       "homepage": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals",
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
-      "ok": true,
-      "stale": false,
+      "ok": false,
+      "stale": true,
       "count": 478,
       "rejected": 0,
-      "durationMs": 16396,
-      "error": null,
+      "durationMs": 75370,
+      "error": "Unterminated string in JSON at position 2987735 (line 1 column 2987736)",
       "lastSuccess": "2026-10-28T05:58:35.429Z"
     },
     {
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1465,
+      "count": 1473,
       "rejected": 0,
-      "durationMs": 369736,
+      "durationMs": 372045,
       "error": null,
-      "lastSuccess": "2026-10-28T06:04:28.770Z"
+      "lastSuccess": "2026-10-29T06:11:17.925Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 826,
+      "durationMs": 874,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2048,
       "rejected": 0,
-      "durationMs": 64248,
+      "durationMs": 63807,
       "error": null,
-      "lastSuccess": "2026-10-28T05:59:23.283Z"
+      "lastSuccess": "2026-10-29T06:06:09.688Z"
     }
   ],
   "fxToInr": {
