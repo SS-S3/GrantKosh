@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-29T06:11:18.115Z",
-  "opportunities": 5607,
+  "generatedAt": "2026-10-30T06:12:00.779Z",
+  "opportunities": 5590,
   "investors": 2048,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 80,
+      "durationMs": 54,
       "error": null,
-      "lastSuccess": "2026-10-29T06:05:05.955Z"
+      "lastSuccess": "2026-10-30T06:05:50.505Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 17681,
+      "durationMs": 17218,
       "error": null,
-      "lastSuccess": "2026-10-29T06:05:23.557Z"
+      "lastSuccess": "2026-10-30T06:06:07.670Z"
     },
     {
       "id": "idex",
@@ -41,8 +41,8 @@
       "stale": true,
       "count": 33,
       "rejected": 0,
-      "durationMs": 11620,
-      "error": "fetch failed",
+      "durationMs": 5432,
+      "error": "HTTP 404 for https://idex.gov.in/challenges",
       "lastSuccess": "2026-10-22T05:06:35.935Z"
     },
     {
@@ -55,9 +55,9 @@
       "stale": false,
       "count": 1095,
       "rejected": 0,
-      "durationMs": 33117,
+      "durationMs": 34881,
       "error": null,
-      "lastSuccess": "2026-10-29T06:05:38.995Z"
+      "lastSuccess": "2026-10-30T06:06:25.334Z"
     },
     {
       "id": "ukri",
@@ -69,9 +69,9 @@
       "stale": false,
       "count": 144,
       "rejected": 0,
-      "durationMs": 13009,
+      "durationMs": 14190,
       "error": null,
-      "lastSuccess": "2026-10-29T06:05:18.887Z"
+      "lastSuccess": "2026-10-30T06:06:04.644Z"
     },
     {
       "id": "eu-funding",
@@ -79,13 +79,13 @@
       "kind": "opportunities",
       "homepage": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals",
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
-      "ok": false,
-      "stale": true,
-      "count": 478,
+      "ok": true,
+      "stale": false,
+      "count": 471,
       "rejected": 0,
-      "durationMs": 75370,
-      "error": "Unterminated string in JSON at position 2987735 (line 1 column 2987736)",
-      "lastSuccess": "2026-10-28T05:58:35.429Z"
+      "durationMs": 16124,
+      "error": null,
+      "lastSuccess": "2026-10-30T06:06:06.578Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1473,
+      "count": 1463,
       "rejected": 0,
-      "durationMs": 372045,
+      "durationMs": 370180,
       "error": null,
-      "lastSuccess": "2026-10-29T06:11:17.925Z"
+      "lastSuccess": "2026-10-30T06:12:00.635Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 874,
+      "durationMs": 1876,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2048,
       "rejected": 0,
-      "durationMs": 63807,
+      "durationMs": 64850,
       "error": null,
-      "lastSuccess": "2026-10-29T06:06:09.688Z"
+      "lastSuccess": "2026-10-30T06:06:55.306Z"
     }
   ],
   "fxToInr": {
