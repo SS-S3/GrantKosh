@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-30T06:12:00.779Z",
-  "opportunities": 5590,
-  "investors": 2048,
+  "generatedAt": "2026-10-31T06:05:55.805Z",
+  "opportunities": 5591,
+  "investors": 2049,
   "sources": [
     {
       "id": "curated",
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 54,
+      "durationMs": 59,
       "error": null,
-      "lastSuccess": "2026-10-30T06:05:50.505Z"
+      "lastSuccess": "2026-10-31T05:59:47.238Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 17218,
+      "durationMs": 15924,
       "error": null,
-      "lastSuccess": "2026-10-30T06:06:07.670Z"
+      "lastSuccess": "2026-10-31T06:00:03.104Z"
     },
     {
       "id": "idex",
@@ -37,13 +37,13 @@
       "kind": "opportunities",
       "homepage": "https://idex.gov.in/challenges",
       "description": "Ministry of Defence innovation challenges (DISC, ADITI, iDEX PRIME, DRISHTI) with grants for startups and MSMEs.",
-      "ok": false,
-      "stale": true,
-      "count": 33,
+      "ok": true,
+      "stale": false,
+      "count": 34,
       "rejected": 0,
-      "durationMs": 5432,
-      "error": "HTTP 404 for https://idex.gov.in/challenges",
-      "lastSuccess": "2026-10-22T05:06:35.935Z"
+      "durationMs": 28528,
+      "error": null,
+      "lastSuccess": "2026-10-31T06:00:15.709Z"
     },
     {
       "id": "myscheme",
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1095,
+      "count": 1093,
       "rejected": 0,
-      "durationMs": 34881,
+      "durationMs": 31875,
       "error": null,
-      "lastSuccess": "2026-10-30T06:06:25.334Z"
+      "lastSuccess": "2026-10-31T06:00:19.057Z"
     },
     {
       "id": "ukri",
@@ -69,9 +69,9 @@
       "stale": false,
       "count": 144,
       "rejected": 0,
-      "durationMs": 14190,
+      "durationMs": 12904,
       "error": null,
-      "lastSuccess": "2026-10-30T06:06:04.644Z"
+      "lastSuccess": "2026-10-31T06:00:00.086Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 471,
+      "count": 476,
       "rejected": 0,
-      "durationMs": 16124,
+      "durationMs": 13912,
       "error": null,
-      "lastSuccess": "2026-10-30T06:06:06.578Z"
+      "lastSuccess": "2026-10-31T06:00:01.094Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1463,
+      "count": 1461,
       "rejected": 0,
-      "durationMs": 370180,
+      "durationMs": 368475,
       "error": null,
-      "lastSuccess": "2026-10-30T06:12:00.635Z"
+      "lastSuccess": "2026-10-31T06:05:55.658Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 1876,
+      "durationMs": 1137,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -123,11 +123,11 @@
       "description": "Every SEBI-registered Alternative Investment Fund: venture capital, angel, private equity, venture debt and other funds.",
       "ok": true,
       "stale": false,
-      "count": 2048,
+      "count": 2049,
       "rejected": 0,
-      "durationMs": 64850,
+      "durationMs": 71008,
       "error": null,
-      "lastSuccess": "2026-10-30T06:06:55.306Z"
+      "lastSuccess": "2026-10-31T06:00:58.192Z"
     }
   ],
   "fxToInr": {
