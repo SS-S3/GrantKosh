@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-31T06:05:55.805Z",
-  "opportunities": 5591,
+  "generatedAt": "2026-11-01T06:35:11.088Z",
+  "opportunities": 5586,
   "investors": 2049,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 59,
+      "durationMs": 47,
       "error": null,
-      "lastSuccess": "2026-10-31T05:59:47.238Z"
+      "lastSuccess": "2026-11-01T06:29:04.189Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 15924,
+      "durationMs": 16245,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:03.104Z"
+      "lastSuccess": "2026-11-01T06:29:20.388Z"
     },
     {
       "id": "idex",
@@ -41,9 +41,9 @@
       "stale": false,
       "count": 34,
       "rejected": 0,
-      "durationMs": 28528,
+      "durationMs": 28301,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:15.709Z"
+      "lastSuccess": "2026-11-01T06:29:32.445Z"
     },
     {
       "id": "myscheme",
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1093,
+      "count": 1095,
       "rejected": 0,
-      "durationMs": 31875,
+      "durationMs": 35559,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:19.057Z"
+      "lastSuccess": "2026-11-01T06:29:39.703Z"
     },
     {
       "id": "ukri",
@@ -69,9 +69,9 @@
       "stale": false,
       "count": 144,
       "rejected": 0,
-      "durationMs": 12904,
+      "durationMs": 13050,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:00.086Z"
+      "lastSuccess": "2026-11-01T06:29:17.195Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 476,
+      "count": 477,
       "rejected": 0,
-      "durationMs": 13912,
+      "durationMs": 21197,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:01.094Z"
+      "lastSuccess": "2026-11-01T06:29:25.342Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1461,
+      "count": 1453,
       "rejected": 0,
-      "durationMs": 368475,
+      "durationMs": 366829,
       "error": null,
-      "lastSuccess": "2026-10-31T06:05:55.658Z"
+      "lastSuccess": "2026-11-01T06:35:10.975Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 1137,
+      "durationMs": 1520,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2049,
       "rejected": 0,
-      "durationMs": 71008,
+      "durationMs": 64568,
       "error": null,
-      "lastSuccess": "2026-10-31T06:00:58.192Z"
+      "lastSuccess": "2026-11-01T06:30:08.714Z"
     }
   ],
   "fxToInr": {
