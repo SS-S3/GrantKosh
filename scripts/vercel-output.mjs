@@ -45,7 +45,7 @@ await build({
 
 /** Functions that read the dataset get their own copy of it. */
 const READS_DATA = new Set(["health", "chat", "stats", "funding", "opportunity", "investors", "match"]);
-for (const name of ["health", "me", "chat", "stats", "funding", "opportunity", "investors", "match", "billing/subscribe", "billing/webhook"]) {
+for (const name of ["health", "me", "chat", "stats", "funding", "opportunity", "investors", "match", "trial/claim", "billing/subscribe", "billing/webhook"]) {
   const fn = `${out}/functions/api/${name}.func`;
   mkdirSync(`${fn}/data`, { recursive: true });
   cpSync(bundle, `${fn}/index.mjs`);

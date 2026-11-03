@@ -297,6 +297,55 @@ function SubscribeForm({ me }: { me: Me }) {
   );
 }
 
+function TrialClaimForm({ me }: { me: Me }) {
+  const { authHeaders, refresh, openProfile } = useAccount();
+  const [companyId, setCompanyId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!me.phoneVerified) {
+    return (
+      <div className="subscribe">
+        <span className="fine">To start your free {me.trialDays}-day trial, first add and verify your mobile number.</span>
+        {openProfile && (
+          <button className="btn btn-primary btn-sm" onClick={openProfile}>
+            Verify mobile number
+          </button>
+        )}
+      </div>
+    );
+  }
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("api/trial/claim", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ companyId }) });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `Couldn't start the trial (HTTP ${res.status}).`);
+      await refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form
+      className="subscribe"
+      onSubmit={e => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <input className="g-input" autoComplete="off" placeholder="Company CIN, LLPIN or PAN" value={companyId} onChange={e => setCompanyId(e.target.value)} aria-label="Company CIN, LLPIN or PAN" />
+      <button type="submit" className="btn btn-primary btn-sm" disabled={busy || companyId.trim().length < 8}>
+        {busy ? "Starting…" : `Start ${me.trialDays}-day free trial`}
+      </button>
+      {error && <span className="chat-error">{error}</span>}
+      <span className="fine">One free trial per company and mobile number. We keep only the last 4 characters of the ID.</span>
+    </form>
+  );
+}
+
 function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
   const { signedIn } = useAccount();
   if (!required || !me) return null;
@@ -306,7 +355,7 @@ function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
       <div className="planbar">
         <span>
           {trialOpen
-            ? <>Sign up before {dateLabel(me.trialSignupDeadline)} for a <b>free {me.trialDays}-day trial</b>, then ₹{me.priceInr}/month. Free accounts get {me.freeDaily} chats a day.</>
+            ? <>Sign up before {dateLabel(me.trialSignupDeadline)} for a <b>free {me.trialDays}-day trial</b> (one per company), then ₹{me.priceInr}/month. Free accounts get {me.freeDaily} chats a day.</>
             : <>Sign in to chat with the advisor: {me.freeDaily} free chats a day, or up to {me.paidDaily} a day for ₹{me.priceInr}/month.</>}
         </span>
         <SignInCta label={trialOpen ? "Start free trial" : "Sign in"} />
@@ -324,7 +373,7 @@ function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
         {me.plan === "trial" && <><b>Free trial</b> until {dateLabel(me.trialEndsAt!)} · {usage}</>}
         {me.plan === "free" && <><b>Free plan</b> · {usage}</>}
       </span>
-      {me.plan !== "paid" && <SubscribeForm me={me} />}
+      {me.plan === "free" && me.trialClaimable ? <TrialClaimForm me={me} /> : me.plan !== "paid" && <SubscribeForm me={me} />}
     </div>
   );
 }

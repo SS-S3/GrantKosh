@@ -1,7 +1,7 @@
 // Sign-in (Clerk) and the Advisor plan. Everything except the Advisor chat works without an account.
 // Build with VITE_CLERK_PUBLISHABLE_KEY to turn sign-in on; without it the Advisor is limited per visitor.
 // For local UI testing against a server started with ADVISOR_MOCK=1, set VITE_MOCK_USER=<id> instead.
-import { ClerkProvider, SignInButton, UserButton, useAuth } from "@clerk/react";
+import { ClerkProvider, SignInButton, UserButton, useAuth, useClerk } from "@clerk/react";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
@@ -23,6 +23,10 @@ export interface Me {
   trialEndsAt?: string | null;
   paidUntil?: string | null;
   canSubscribe?: boolean;
+  /** The account can still start its free trial (one per company and phone number). */
+  trialClaimable?: boolean;
+  /** Clerk has verified the account's phone number, which a trial claim needs. */
+  phoneVerified?: boolean;
 }
 
 interface AccountState {
@@ -33,6 +37,8 @@ interface AccountState {
   /** Headers for API calls: the session token when signed in. */
   authHeaders(): Promise<Record<string, string>>;
   refresh(): Promise<Me | null>;
+  /** Opens Clerk's account settings, e.g. to add and verify a phone number. */
+  openProfile?: () => void;
 }
 
 const AccountContext = createContext<AccountState>({ enabled: false, signedIn: false, me: null, authHeaders: async () => ({}), refresh: async () => null });
@@ -63,7 +69,9 @@ function ClerkBridge({ children }: { children: ReactNode }) {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, [isSignedIn, getToken]);
   const { me, refresh } = useMe(!!isSignedIn, isLoaded, authHeaders);
-  return <AccountContext.Provider value={{ enabled: true, signedIn: !!isSignedIn, me, authHeaders, refresh }}>{children}</AccountContext.Provider>;
+  const clerk = useClerk();
+  const openProfile = useCallback(() => clerk.openUserProfile(), [clerk]);
+  return <AccountContext.Provider value={{ enabled: true, signedIn: !!isSignedIn, me, authHeaders, refresh, openProfile }}>{children}</AccountContext.Provider>;
 }
 
 function NoClerkBridge({ children }: { children: ReactNode }) {

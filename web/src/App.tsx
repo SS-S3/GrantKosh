@@ -4,6 +4,7 @@ import { loadStats, type Stats } from "./data";
 import { AdvisorView } from "./AdvisorView";
 import { FundingView } from "./FundingView";
 import { InvestorsView } from "./InvestorsView";
+import { LegalLinks, LegalPageView, legalPageFromPath } from "./LegalPages";
 import { useTab } from "./urlState";
 
 const TABS = [
@@ -52,6 +53,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useTab();
   const [theme, toggleTheme] = useTheme();
+  // Policy pages live at their own paths (/terms, /privacy, …), which payment gateways link to.
+  const [legal] = useState(() => legalPageFromPath(location.pathname));
+  const openTab = (t: string) => (legal ? location.assign(t === "funding" ? "/" : `/?tab=${t}`) : setTab(t));
 
   useEffect(() => {
     loadStats().then(setData, e => setError((e as Error).message));
@@ -73,7 +77,7 @@ export default function App() {
           </span>
           <nav className="tabs" role="tablist" aria-label="Sections">
             {TABS.map(t => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} className="tab" onClick={() => setTab(t.id)}>
+              <button key={t.id} role="tab" aria-selected={!legal && tab === t.id} className="tab" onClick={() => openTab(t.id)}>
                 {t.label}
                 {t.extra && <span className="tab-extra">{t.extra}</span>}
                 {data && (t.id === "funding" || t.id === "investors") && <span className="tab-count">{(t.id === "funding" ? data.programs : data.investors).toLocaleString("en-IN")}</span>}
@@ -97,7 +101,8 @@ export default function App() {
       </header>
 
       <main className="wrap">
-        {tab === "funding" && (
+        {legal && <LegalPageView page={legal} />}
+        {!legal && tab === "funding" && (
           <section className="hero">
             <p className="eyebrow">Free · Updated daily · No sign-up</p>
             <h1>Every grant, scheme and challenge for founders, in one search.</h1>
@@ -112,19 +117,22 @@ export default function App() {
           </section>
         )}
 
-        {error && (
+        {!legal && error && (
           <div className="empty">
             <p>{error}</p>
           </div>
         )}
-        {!data && !error && <div className="loading" aria-busy="true">Loading directory…</div>}
-        {data && tab === "funding" && <FundingView stats={data} />}
-        {data && tab === "advisor" && <AdvisorView stats={data} />}
-        {data && tab === "investors" && <InvestorsView stats={data} />}
+        {!legal && !data && !error && <div className="loading" aria-busy="true">Loading directory…</div>}
+        {!legal && data && tab === "funding" && <FundingView stats={data} />}
+        {!legal && data && tab === "advisor" && <AdvisorView stats={data} />}
+        {!legal && data && tab === "investors" && <InvestorsView stats={data} />}
       </main>
 
       <footer className="wrap footer">
-        <span>© GrantKosh · Not affiliated with any government body. Always confirm details on the official page.</span>
+        <span>
+          © GrantKosh · Not affiliated with any government body. Always confirm details on the official page.
+          <LegalLinks />
+        </span>
         <span className="footer-maker">
           <span>Made by</span>
           <img className="vd-light" src="brand/vektor-light.png" width="113" height="56" alt="Vektor Dynamics — Drive the change" />

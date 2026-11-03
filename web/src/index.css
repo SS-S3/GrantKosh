@@ -341,3 +341,17 @@ tr:last-child td { border-bottom: 0; }
   .subscribe, .subscribe .fine { justify-content: flex-start; text-align: left; }
   .subscribe .g-input { max-width: none; }
 }
+
+/* Policy pages */
+.legal { max-width: 760px; margin: 32px 0 48px; line-height: 1.65; }
+.legal h1 { font: 700 34px var(--serif); margin: 0 0 4px; }
+.legal h2 { font: 700 19px var(--serif); margin: 28px 0 8px; }
+.legal-updated { color: var(--ink-faint); font: 500 12px var(--mono); margin-bottom: 20px; }
+.legal ul { padding-left: 20px; }
+.legal li { margin: 6px 0; }
+.legal-contact { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; }
+.legal-contact dt { font-weight: 600; }
+.legal-contact dd { margin: 0; }
+mark.todo { background: var(--bad-soft); color: var(--bad); padding: 0 4px; border-radius: 4px; }
+.legal-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; }
+.legal-links a { color: var(--ink-soft); }

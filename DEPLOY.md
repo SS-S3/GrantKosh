@@ -72,7 +72,7 @@ The directory, investors and sources stay free and need no account. The **Adviso
 | Plan | Who | Model | Chats (days reset at midnight IST) |
 |---|---|---|---|
 | Free | any signed-in account | Flash-Lite (`GEMINI_MODELS_FREE`) | `ADVISOR_FREE_DAILY` = 2 a day |
-| Trial | accounts created before `TRIAL_SIGNUP_DEADLINE` (25 Nov 2026, 00:00 IST), for `TRIAL_DAYS` = 30 days after sign-up | Flash (`GEMINI_MODELS`) | `ADVISOR_TRIAL_DAILY` = 5 a day, `ADVISOR_TRIAL_TOTAL` = 80 in all |
+| Trial | claimed before `TRIAL_SIGNUP_DEADLINE` (25 Nov 2026, 00:00 IST) with a verified mobile number and a company CIN, LLPIN or PAN; one per company and per number; `TRIAL_DAYS` = 30 days from the claim | Flash (`GEMINI_MODELS`) | `ADVISOR_TRIAL_DAILY` = 5 a day, `ADVISOR_TRIAL_TOTAL` = 80 in all |
 | Paid | active ₹129/month subscription | Flash (`GEMINI_MODELS`) | `ADVISOR_PAID_DAILY` = 15 a day, `ADVISOR_PAID_MONTHLY` = 120 per calendar month |
 
 **Clerk (sign-in):**
@@ -82,8 +82,22 @@ The directory, investors and sources stay free and need no account. The **Adviso
    networkless token checks.
 3. For production, create the Clerk production instance and add its DNS records (`clerk.<your-domain>`).
    The CSP picks up the Clerk origin from the publishable key automatically.
+4. **Phone numbers** (needed to claim a trial): Configure → User & authentication → Phone number → turn on,
+   with SMS verification. Check that Clerk delivers SMS to Indian numbers on your plan, and its SMS cost.
+5. **Legal consent:** Configure → Legal → require agreeing to `https://<your-domain>/terms` and `/privacy` at
+   sign-up. Keep **Delete account** enabled (the Privacy Policy says people can delete their account).
+
+**Trial claims:** the Advisor asks a signed-in user without a trial for their company's CIN, LLPIN or PAN
+(`agent/src/trial.ts`). Each company id and each phone number can start one trial. Only salted hashes are kept
+(in Upstash, so they survive restarts and are shared across instances); the account stores a masked id. Set
+`TRIAL_ID_SALT` to a random secret once and never change it, or earlier claims stop being recognised. This
+checks format and uniqueness only: it does not prove the company exists.
 
 **Cashfree (subscriptions):**
+0. **Policy pages:** Cashfree checks the site for Terms, Privacy, Refund/Cancellation and Contact pages
+   before activating payments. They are at `/terms`, `/privacy`, `/refunds` and `/contact`. Fill in the
+   business details at the top of `web/src/LegalPages.tsx` first (blank fields show as "[to be added]"), and
+   have the texts reviewed: they are drafts.
 1. Cashfree dashboard → Subscriptions → create a **Periodic** plan: ₹129, every 1 month. Copy its plan id.
 2. Vercel env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_PLAN_ID`,
    `CASHFREE_ENV` (`sandbox` until you have tested, then `production`), and `PUBLIC_URL=https://<your-domain>`.
@@ -377,6 +391,7 @@ their proxy, and expose port 8080 (or set `PORT`).
 | `ALLOWED_ORIGINS` | unset | Extra browser origins allowed to call the API (comma-separated) |
 | `TRIAL_SIGNUP_DEADLINE` | `2026-11-25T00:00:00+05:30` | Accounts created before this get the trial |
 | `TRIAL_DAYS` | `30` | Trial length from sign-up |
+| `TRIAL_ID_SALT` | built-in default | Secret for hashing trial company ids and phone numbers. Set once; never change. |
 | `SUBSCRIPTION_PRICE_INR` | `129` | Price shown in the UI; must match the Cashfree plan |
 | `VITE_CLERK_PUBLISHABLE_KEY` | unset | Turns on sign-in (build time). Without Clerk, chat is limited per IP like a free account. |
 | `CLERK_SECRET_KEY` | unset | Verifies sessions and stores paid-until dates on Clerk users |

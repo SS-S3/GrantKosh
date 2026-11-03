@@ -3,6 +3,7 @@
 //   GET  /api/me                 → the caller's plan and usage
 //   GET  /api/stats, /api/funding, /api/opportunity, /api/investors, POST /api/match → the directory (directory.ts)
 //   POST /api/chat               → text/event-stream of AgentEvent JSON lines (signed-in users when auth is on)
+//   POST /api/trial/claim        → starts the free trial: { companyId } (CIN/LLPIN/PAN), needs a verified phone
 //   POST /api/billing/subscribe  → { sessionId, mode } to open Cashfree subscription checkout
 //   POST /api/billing/webhook    → Cashfree subscription events
 // Configure with agent/.env (see .env.example). Without a Gemini key the UI uses guided mode.
@@ -15,15 +16,16 @@ import { createHash } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { type AgentEvent, type ChatTurn, errorEvent, runAdvisor } from "./agent";
-import { type AccountInfo, authEnabled, getAccount, saveBilling, userIdFrom } from "./auth";
+import { type AccountInfo, authEnabled, getAccount, saveBilling, saveTrial, userIdFrom } from "./auth";
 import { billingEnabled, billingUpdate, CASHFREE_MODE, createSubscription, firstChargeAt, verifyWebhook, type WebhookEvent } from "./billing";
 import { cacheKey, getCached, putCached } from "./cache";
 import { getDataset } from "./data";
 import { funding, investors, match, MatchBody, opportunity, stats } from "./directory";
 import { apiKeys, KeyPool } from "./gemini";
 import { apiRateOk, burstOk, directoryDailyOk, lockUser, recordTokens, takeChat, usage, type Verdict, withStore } from "./limits";
-import { DAILY_LIMITS, type Entitlement, entitlement, PAID_MONTHLY, PRICE_INR, TRIAL_DAYS, TRIAL_SIGNUP_DEADLINE } from "./plans";
+import { canClaimTrial, DAILY_LIMITS, type Entitlement, entitlement, PAID_MONTHLY, PRICE_INR, TRIAL_DAYS, TRIAL_SIGNUP_DEADLINE } from "./plans";
 import { mockAi } from "./mock";
+import { maskCompanyId, parseCompanyId, releaseTrial, reserveTrial } from "./trial";
 import HEADERS from "./security-headers.json";
 
 const ENV_FILE = fileURLToPath(new URL("../.env", import.meta.url));
@@ -150,6 +152,8 @@ async function me(req: IncomingMessage, res: ServerResponse) {
     trialEndsAt: e.trialEndsAt && new Date(e.trialEndsAt).toISOString(),
     paidUntil: e.paidUntil && new Date(e.paidUntil).toISOString(),
     canSubscribe: billingEnabled && !!c.account,
+    trialClaimable: canClaimTrial(c.account),
+    phoneVerified: !!c.account?.phone,
   });
 }
 
@@ -256,6 +260,39 @@ async function chat(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+// ---------- trial ----------
+const ClaimBody = z.object({ companyId: z.string().min(4).max(40) });
+
+async function claimTrial(req: IncomingMessage, res: ServerResponse) {
+  if (!authEnabled) return json(res, 503, { error: "Trials need sign-in, which isn't set up on this deployment." });
+  const c = await caller(req);
+  if (!c?.account) return json(res, 401, SIGN_IN);
+  if (!canClaimTrial(c.account)) return json(res, 409, { code: "closed", error: c.account.trialStartedAt ? "This account has already used its free trial." : "Free trials are closed." });
+  if (!c.account.phone) return json(res, 409, { code: "phone", error: "Verify your mobile number first (account menu → Manage account → Phone numbers)." });
+  let body: z.infer<typeof ClaimBody>;
+  try {
+    body = ClaimBody.parse(JSON.parse(await readBody(req, 2 * 1024)));
+  } catch {
+    return json(res, 400, { error: "Enter your company's CIN, LLPIN or PAN." });
+  }
+  const id = parseCompanyId(body.companyId);
+  if (!id) return json(res, 400, { code: "format", error: "That doesn't look like a CIN (e.g. U72900KA2019PTC123456), LLPIN (e.g. AAB-1234) or PAN (e.g. AAACB1234F)." });
+
+  const reserved = await reserveTrial(c.account.id, id.value, c.account.phone);
+  if (!reserved.ok) {
+    const error = reserved.reason === "company" ? `This ${id.type} has already been used for a free trial. You can still subscribe.` : "This mobile number has already been used for a free trial. You can still subscribe.";
+    return json(res, 409, { code: "used", error });
+  }
+  try {
+    await saveTrial(c.account.id, { trialStartedAt: Date.now(), companyIdType: id.type, companyIdMasked: maskCompanyId(id.type, id.value) });
+  } catch (err) {
+    await releaseTrial(id.value, c.account.phone);
+    throw err;
+  }
+  console.log(`[trial] claimed with ${id.type}`);
+  json(res, 200, { ok: true });
+}
+
 // ---------- billing ----------
 const SubscribeBody = z.object({ phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a 10-digit Indian mobile number") });
 
@@ -358,11 +395,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
         return json(res, 200, { items: match(getDataset(), body) });
       }
     }
-    const post = path === "/api/chat" || path === "/api/billing/subscribe";
+    const post = path === "/api/chat" || path === "/api/billing/subscribe" || path === "/api/trial/claim";
     if (post && req.method !== "POST") return json(res, 405, { error: "POST only" });
     if (post && !originOk(req)) return json(res, 403, { error: "cross-site request refused" });
     if (post && !isJson(req)) return json(res, 415, { error: "send application/json" });
     if (path === "/api/billing/subscribe") return await subscribe(req, res);
+    if (path === "/api/trial/claim") return await claimTrial(req, res);
     if (path === "/api/chat") return await chat(req, res);
     json(res, 404, { error: "not found" });
   } catch (err) {

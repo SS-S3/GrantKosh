@@ -3,21 +3,26 @@ import { describe, expect, it } from "vitest";
 import { billingUpdate, firstChargeAt, subscriptionIdFor, userIdFromSubscription, verifyWebhook } from "../src/billing";
 import { cacheKey, getCached, putCached } from "../src/cache";
 import { takeChat, usage } from "../src/limits";
-import { entitlement, istDay } from "../src/plans";
+import { canClaimTrial, entitlement, istDay } from "../src/plans";
+import { maskCompanyId, parseCompanyId, releaseTrial, reserveTrial } from "../src/trial";
 
 const DAY = 24 * 3600 * 1000;
 const at = (iso: string) => Date.parse(iso);
 
 describe("entitlement", () => {
-  it("gives a 30-day trial to sign-ups before 25 Nov 2026 IST", () => {
-    const created = at("2026-11-24T23:59:00+05:30");
-    expect(entitlement({ createdAt: created }, created + 29 * DAY)).toMatchObject({ plan: "trial", dailyLimit: 5, period: { kind: "trial", limit: 80 }, trialEndsAt: created + 30 * DAY });
-    expect(entitlement({ createdAt: created }, created + 31 * DAY).plan).toBe("free");
+  it("runs the trial for 30 days from when it was claimed", () => {
+    const claimed = at("2026-11-24T23:59:00+05:30");
+    const acc = { createdAt: claimed - DAY, trialStartedAt: claimed };
+    expect(entitlement(acc, claimed + 29 * DAY)).toMatchObject({ plan: "trial", dailyLimit: 5, period: { kind: "trial", limit: 80 }, trialEndsAt: claimed + 30 * DAY });
+    expect(entitlement(acc, claimed + 31 * DAY).plan).toBe("free");
   });
 
-  it("gives no trial to later sign-ups", () => {
-    const created = at("2026-11-25T00:00:00+05:30");
+  it("gives no trial until one is claimed, and claims close on 25 Nov 2026 IST", () => {
+    const created = at("2026-11-10T10:00:00+05:30");
     expect(entitlement({ createdAt: created }, created + DAY)).toMatchObject({ plan: "free", dailyLimit: 2, period: null, trialEndsAt: null });
+    expect(canClaimTrial({ createdAt: created }, at("2026-11-24T23:59:00+05:30"))).toBe(true);
+    expect(canClaimTrial({ createdAt: created }, at("2026-11-25T00:00:00+05:30"))).toBe(false);
+    expect(canClaimTrial({ createdAt: created, trialStartedAt: created }, created + DAY)).toBe(false);
   });
 
   it("treats paid access as paid, during or after a trial", () => {
@@ -128,5 +133,29 @@ describe("Cashfree billing", () => {
     expect(update?.paidUntil).toBe(at("2026-12-10T10:00:00+05:30") + 2 * DAY);
     const cancelled = billingUpdate({ type: "SUBSCRIPTION_STATUS_CHANGED", data: { subscription_details: { subscription_id: "gk-2abc-xyz", subscription_status: "CANCELLED" } } }, 0, now);
     expect(cancelled).toEqual({ userId: "user_2abc", subscriptionId: "gk-2abc-xyz", subscriptionStatus: "CANCELLED" });
+  });
+});
+
+describe("trial claims", () => {
+  it("recognises CIN, LLPIN and PAN, and masks them", () => {
+    expect(parseCompanyId(" u72900ka2019ptc123456 ")).toEqual({ type: "CIN", value: "U72900KA2019PTC123456" });
+    expect(parseCompanyId("aab-1234")).toEqual({ type: "LLPIN", value: "AAB-1234" });
+    expect(parseCompanyId("AAACB 1234F")).toEqual({ type: "PAN", value: "AAACB1234F" });
+    expect(parseCompanyId("12345")).toBeNull();
+    expect(maskCompanyId("PAN", "AAACB1234F")).toBe("PAN ••••••234F");
+  });
+
+  it("allows one trial per company and per phone number", async () => {
+    const pan = `AAACB${Math.floor(1000 + Math.random() * 8999)}F`;
+    const phone = `+9198${Math.floor(1e7 + Math.random() * 8e7)}`;
+    expect(await reserveTrial("user_a", pan, phone)).toEqual({ ok: true });
+    // The same account may retry; another account may not reuse the company or the phone.
+    expect(await reserveTrial("user_a", pan, phone)).toEqual({ ok: true });
+    expect(await reserveTrial("user_b", pan, "+919000000001")).toEqual({ ok: false, reason: "company" });
+    expect(await reserveTrial("user_b", "U72900KA2019PTC000001", phone)).toEqual({ ok: false, reason: "phone" });
+    // A refused claim doesn't hold on to the company id it tried.
+    expect(await reserveTrial("user_c", "U72900KA2019PTC000001", "+919000000002")).toEqual({ ok: true });
+    await releaseTrial(pan, phone);
+    expect(await reserveTrial("user_b", pan, "+919000000003")).toEqual({ ok: true });
   });
 });

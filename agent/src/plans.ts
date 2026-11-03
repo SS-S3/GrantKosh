@@ -1,6 +1,7 @@
 // Advisor plans:
 //   free   2 chats a day, on the cheaper Flash-Lite models (GEMINI_MODELS_FREE)
-//   trial  5 chats a day and 80 in all, on Flash; for anyone who signs up before TRIAL_SIGNUP_DEADLINE
+//   trial  5 chats a day and 80 in all, on Flash, for TRIAL_DAYS from the day it is claimed. One trial per
+//          company and per phone number (trial.ts); claims are open until TRIAL_SIGNUP_DEADLINE
 //   paid   15 chats a day and 120 per calendar month (IST), on Flash; needs a subscription (billing.ts),
 //          which sets `paidUntil` on the account
 // Every limit can be changed with the env vars below.
@@ -12,6 +13,8 @@ export interface Account {
   createdAt: number;
   /** Paid access ends at this time, ms since epoch. Set by billing webhooks. */
   paidUntil?: number;
+  /** When the free trial was claimed, ms since epoch. Set by trial.ts. */
+  trialStartedAt?: number;
 }
 
 export interface Entitlement {
@@ -44,8 +47,11 @@ export const DAILY_LIMITS: Record<Plan, number> = {
 export const TRIAL_TOTAL = Number(process.env.ADVISOR_TRIAL_TOTAL ?? 80);
 export const PAID_MONTHLY = Number(process.env.ADVISOR_PAID_MONTHLY ?? 120);
 
+/** Whether this account may still claim the free trial. */
+export const canClaimTrial = (acc: Account | null, now = Date.now()) => !!acc && !acc.trialStartedAt && now < TRIAL_SIGNUP_DEADLINE;
+
 export function entitlement(acc: Account | null, now = Date.now()): Entitlement {
-  const trialEndsAt = acc && acc.createdAt < TRIAL_SIGNUP_DEADLINE ? acc.createdAt + TRIAL_DAYS * DAY_MS : null;
+  const trialEndsAt = acc?.trialStartedAt ? acc.trialStartedAt + TRIAL_DAYS * DAY_MS : null;
   const paidUntil = acc?.paidUntil ?? null;
   const plan: Plan = paidUntil && paidUntil > now ? "paid" : trialEndsAt && trialEndsAt > now ? "trial" : "free";
   const period: Period | null =
