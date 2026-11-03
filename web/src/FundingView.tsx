@@ -1,37 +1,42 @@
-import { useMemo, useState } from "react";
-import { FilterGroup, Modal, SearchBox, useShowMore } from "./components";
-import type { Dataset } from "./data";
+import { useEffect, useMemo, useState } from "react";
+import { FilterGroup, Modal, SearchBox, usePaged } from "./components";
+import { loadOpportunity, type PublicOpportunity, type Stats } from "./data";
 import { amountLabel, deadlineLabel, fmtDate } from "./format";
 import {
-  activeFilterCount, applyFunding, FACETS, FUNDING_DEFAULTS, MIN_AMOUNT, QUICK, SORTS, WITHIN, type FacetKey,
+  activeFilterCount, FACETS, FUNDING_DEFAULTS, MIN_AMOUNT, QUICK, SORTS, WITHIN, type FacetKey,
 } from "./funding";
 import {
   COUNTRY, ENTITY, FOUNDER, FUNDING_TYPE, label, PROGRAM_TYPE, REGISTRATION, SECTOR, STAGE, STATES, STATUS,
 } from "./labels";
-import type { Opportunity } from "./types";
+import { toQuery } from "./query";
 import { useUrlState } from "./urlState";
 
-export function FundingView({ data }: { data: Dataset }) {
+export function FundingView({ stats }: { stats: Stats }) {
   const { state: s, set, toggle, reset } = useUrlState(FUNDING_DEFAULTS, ["tab", "open"]);
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(location.search).get("open"));
   const [drawer, setDrawer] = useState(false);
 
-  const hits = useMemo(() => {
-    const q = s.q.trim();
-    if (!q) return null;
-    return new Map(data.oppIndex.search(q).map(r => [r.id as string, r.score]));
-  }, [s.q, data.oppIndex]);
-  const sort = !s.sort || (s.sort === "relevance" && !hits) ? (hits ? "relevance" : "closing") : s.sort;
-  const { rows, counts } = useMemo(() => applyFunding(data.opportunities, { ...s, sort }, data.today, hits), [data, s, sort, hits]);
-  const page = useShowMore(rows, 30, JSON.stringify(s));
+  const query = useMemo(() => toQuery(s, FUNDING_DEFAULTS).toString(), [s]);
+  const list = usePaged<PublicOpportunity, FacetKey>("funding", query);
+  const searching = list.page?.searching ?? !!s.q.trim();
+  const sort = list.page?.sort ?? (s.sort || (s.q.trim() ? "relevance" : "closing"));
   const active = activeFilterCount(s);
-  const selected = openId ? data.opportunities.find(o => o.id === openId) ?? null : null;
+  const [selected, setSelected] = useState<PublicOpportunity | null>(null);
+  useEffect(() => {
+    if (!openId) return setSelected(null);
+    const shown = list.items.find(o => o.id === openId);
+    if (shown) return setSelected(shown);
+    // Opened from a shared link: fetch the one programme.
+    let live = true;
+    loadOpportunity(openId).then(o => live && setSelected(o), () => live && setSelected(null));
+    return () => {
+      live = false;
+    };
+  }, [openId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const options = (key: FacetKey): Array<[string, number]> => {
     const f = FACETS.find(x => x.key === key)!;
-    const m = counts[key];
-    for (const v of s[key]) if (!m.has(v)) m.set(v, 0);
-    const entries = [...m.entries()];
+    const entries = [...(list.page?.counts[key] ?? s[key].map(v => [v, 0] as [string, number]))];
     if (f.order) return entries.sort((a, b) => f.order!.indexOf(a[0]) - f.order!.indexOf(b[0]));
     return entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   };
@@ -127,13 +132,13 @@ export function FundingView({ data }: { data: Dataset }) {
 
         <div className="result-bar">
           <p className="result-meta" aria-live="polite">
-            <b>{rows.length.toLocaleString("en-IN")}</b> of {data.opportunities.length.toLocaleString("en-IN")} programs
+            <b>{list.total.toLocaleString("en-IN")}</b> of {stats.programs.toLocaleString("en-IN")} programs
           </p>
           <div className="result-actions">
             <label className="sort">
               <span>Sort</span>
               <select value={sort} onChange={e => set("sort", e.target.value)}>
-                {SORTS.filter(x => x.value !== "relevance" || hits).map(x => (
+                {SORTS.filter(x => x.value !== "relevance" || searching).map(x => (
                   <option key={x.value} value={x.value}>
                     {x.label}
                   </option>
@@ -143,7 +148,13 @@ export function FundingView({ data }: { data: Dataset }) {
           </div>
         </div>
 
-        {rows.length === 0 ? (
+        {list.error ? (
+          <div className="empty">
+            <p>{list.error}</p>
+          </div>
+        ) : !list.page ? (
+          <div className="loading" aria-busy="true">Loading programmes…</div>
+        ) : list.total === 0 ? (
           <div className="empty">
             <p>No programs match these filters.</p>
             <button className="btn" onClick={reset}>
@@ -151,27 +162,27 @@ export function FundingView({ data }: { data: Dataset }) {
             </button>
           </div>
         ) : (
-          <ol className="cards">
-            {page.visible.map(o => (
-              <OppCard key={o.id} o={o} today={data.today} onOpen={() => open(o.id)} />
+          <ol className={`cards${list.loading ? " is-loading" : ""}`}>
+            {list.items.map(o => (
+              <OppCard key={o.id} o={o} today={stats.today} onOpen={() => open(o.id)} />
             ))}
           </ol>
         )}
-        {page.more && (
-          <button className="btn btn-wide" onClick={page.showMore}>
-            Show more ({page.remaining.toLocaleString("en-IN")} left)
+        {list.remaining > 0 && !list.error && (
+          <button className="btn btn-wide" onClick={list.loadMore} disabled={list.loading}>
+            {list.loading ? "Loading…" : `Show more (${list.remaining.toLocaleString("en-IN")} left)`}
           </button>
         )}
       </section>
 
       <Modal open={!!selected} onClose={() => open(null)} labelledBy="opp-title">
-        {selected && <OppDetail o={selected} today={data.today} />}
+        {selected && <OppDetail o={selected} today={stats.today} />}
       </Modal>
     </div>
   );
 }
 
-export function OppCard({ o, today, onOpen }: { o: Opportunity; today: string; onOpen: () => void }) {
+export function OppCard({ o, today, onOpen }: { o: PublicOpportunity; today: string; onOpen: () => void }) {
   const dl = deadlineLabel(o, today);
   const amount = amountLabel(o);
   return (
@@ -211,7 +222,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-export function OppDetail({ o, today }: { o: Opportunity; today: string }) {
+export function OppDetail({ o, today }: { o: PublicOpportunity; today: string }) {
   const dl = deadlineLabel(o, today);
   const list = (xs: string[], map: Record<string, string>) => (xs.length ? xs.map(x => label(map, x)).join(", ") : "—");
   return (

@@ -1,22 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { parseQuery, toQuery, type Shape } from "./query";
 
 /**
  * Filter state that lives in the URL query string, so any filtered view can be bookmarked or
- * shared. Arrays are comma-separated; defaults are omitted to keep URLs short.
+ * shared. The same query string is sent to the API.
  */
-export type Shape = Record<string, string | string[]>;
-
-function read<T extends Shape>(defaults: T): T {
-  const p = new URLSearchParams(location.search);
-  const out: Shape = { ...defaults };
-  for (const [k, def] of Object.entries(defaults)) {
-    const v = p.get(k);
-    if (v == null) continue;
-    out[k] = Array.isArray(def) ? v.split(",").filter(Boolean) : v;
-  }
-  return out as T;
-}
-
 function write(state: Shape, defaults: Shape, keep: string[]) {
   const p = new URLSearchParams();
   // Preserve keys owned by other views (e.g. the active tab).
@@ -25,18 +13,12 @@ function write(state: Shape, defaults: Shape, keep: string[]) {
     const v = current.get(k);
     if (v != null) p.set(k, v);
   }
-  for (const [k, v] of Object.entries(state)) {
-    const def = defaults[k];
-    if (Array.isArray(v)) {
-      if (v.length && v.join(",") !== (def as string[]).join(",")) p.set(k, v.join(","));
-    } else if (v !== def && v !== "") p.set(k, v);
-  }
-  const qs = p.toString();
+  const qs = toQuery(state, defaults, p).toString();
   history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
 }
 
 export function useUrlState<T extends Shape>(defaults: T, keep: string[] = []) {
-  const [state, setState] = useState<T>(() => read(defaults));
+  const [state, setState] = useState<T>(() => parseQuery(defaults, new URLSearchParams(location.search)));
   useEffect(() => write(state, defaults, keep), [state]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = useCallback(<K extends keyof T>(key: K, value: T[K]) => setState(s => ({ ...s, [key]: value })), []);
   const toggle = useCallback(<K extends keyof T>(key: K, value: string) =>

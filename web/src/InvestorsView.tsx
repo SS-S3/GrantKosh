@@ -1,20 +1,11 @@
 import { useMemo } from "react";
-import { FilterGroup, SearchBox, useShowMore } from "./components";
-import type { Dataset } from "./data";
+import { FilterGroup, SearchBox, usePaged } from "./components";
+import type { PublicInvestor, Stats } from "./data";
 import { fmtDate } from "./format";
+import { INVESTOR_DEFAULTS as DEFAULTS, INVESTOR_FACETS as FACETS, type InvestorKey as Key } from "./investors";
 import { INVESTOR_KIND } from "./labels";
-import type { Investor } from "./types";
+import { toQuery } from "./query";
 import { useUrlState } from "./urlState";
-
-const DEFAULTS = { q: "", sort: "name", kind: [] as string[], category: [] as string[], state: [] as string[], city: [] as string[] };
-type Key = "kind" | "category" | "state" | "city";
-
-const FACETS: Array<{ key: Key; title: string; values: (i: Investor) => string[]; searchable?: boolean }> = [
-  { key: "kind", title: "Investor type", values: i => [i.kind] },
-  { key: "category", title: "SEBI category", values: i => (i.category ? [i.category] : []) },
-  { key: "state", title: "State", values: i => (i.state ? [i.state] : []), searchable: true },
-  { key: "city", title: "City", values: i => (i.city ? [i.city] : []), searchable: true },
-];
 
 const CATEGORY_HINT: Record<string, string> = {
   "AIF Category I": "AIF Category I (VC, angel, SME, social)",
@@ -22,37 +13,15 @@ const CATEGORY_HINT: Record<string, string> = {
   "AIF Category III": "AIF Category III (hedge, listed)",
 };
 
-export function InvestorsView({ data }: { data: Dataset }) {
+export function InvestorsView({ stats }: { stats: Stats }) {
   const { state: s, set, toggle, reset } = useUrlState(DEFAULTS, ["tab"]);
-  const hits = useMemo(() => (s.q.trim() ? new Map(data.invIndex.search(s.q.trim()).map(r => [r.id as string, r.score])) : null), [s.q, data.invIndex]);
+  const query = useMemo(() => toQuery(s, DEFAULTS).toString(), [s]);
+  const list = usePaged<PublicInvestor, Key>("investors", query);
+  const hits = list.page?.searching ?? !!s.q.trim();
 
-  const { rows, counts } = useMemo(() => {
-    const counts = Object.fromEntries(FACETS.map(f => [f.key, new Map<string, number>()])) as Record<Key, Map<string, number>>;
-    const rows: Investor[] = [];
-    for (const inv of data.investors) {
-      if (hits && !hits.has(inv.id)) continue;
-      const fails = FACETS.filter(f => s[f.key].length && !f.values(inv).some(v => s[f.key].includes(v)));
-      const bump = (f: (typeof FACETS)[number]) => f.values(inv).forEach(v => counts[f.key].set(v, (counts[f.key].get(v) ?? 0) + 1));
-      if (!fails.length) {
-        rows.push(inv);
-        FACETS.forEach(bump);
-      } else if (fails.length === 1) bump(fails[0]!);
-    }
-    const sorted = [...rows].sort((a, b) => {
-      if (s.sort === "relevance" && hits) return (hits.get(b.id) ?? 0) - (hits.get(a.id) ?? 0);
-      if (s.sort === "newest") return (b.registeredOn ?? "").localeCompare(a.registeredOn ?? "");
-      if (s.sort === "oldest") return (a.registeredOn ?? "9999").localeCompare(b.registeredOn ?? "9999");
-      return a.name.localeCompare(b.name, "en", { numeric: true, sensitivity: "base" });
-    });
-    return { rows: sorted, counts };
-  }, [data.investors, s, hits]);
-
-  const page = useShowMore(rows, 50, JSON.stringify(s));
   const active = FACETS.reduce((n, f) => n + s[f.key].length, 0);
   const options = (k: Key): Array<[string, number]> => {
-    const m = counts[k];
-    for (const v of s[k]) if (!m.has(v)) m.set(v, 0);
-    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    return [...(list.page?.counts[k] ?? s[k].map(v => [v, 0] as [string, number]))].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   };
 
   return (
@@ -86,11 +55,11 @@ export function InvestorsView({ data }: { data: Dataset }) {
           <SearchBox value={s.q} onChange={v => set("q", v)} placeholder="Search funds by name, city, registration no…" />
         </div>
         <p className="note">
-          Every fund on SEBI's public register of Alternative Investment Funds. Type and focus are inferred from the fund's name and SEBI category. Check the fund's own materials before you pitch.
+          SEBI-registered Alternative Investment Funds. Type and focus are inferred from each fund's name and category. Check the fund's own materials before you pitch.
         </p>
         <div className="result-bar">
           <p className="result-meta" aria-live="polite">
-            <b>{rows.length.toLocaleString("en-IN")}</b> of {data.investors.length.toLocaleString("en-IN")} funds
+            <b>{list.total.toLocaleString("en-IN")}</b> of {stats.investors.toLocaleString("en-IN")} funds
           </p>
           <div className="result-actions">
             <label className="sort">
@@ -105,7 +74,13 @@ export function InvestorsView({ data }: { data: Dataset }) {
           </div>
         </div>
 
-        {rows.length === 0 ? (
+        {list.error ? (
+          <div className="empty">
+            <p>{list.error}</p>
+          </div>
+        ) : !list.page ? (
+          <div className="loading" aria-busy="true">Loading funds…</div>
+        ) : list.total === 0 ? (
           <div className="empty">
             <p>No funds match.</p>
             <button className="btn" onClick={reset}>
@@ -125,7 +100,7 @@ export function InvestorsView({ data }: { data: Dataset }) {
                 </tr>
               </thead>
               <tbody>
-                {page.visible.map(i => (
+                {list.items.map(i => (
                   <tr key={i.id}>
                     <td data-label="Fund">
                       <b className="inv-name">{i.name}</b>
@@ -145,9 +120,9 @@ export function InvestorsView({ data }: { data: Dataset }) {
             </table>
           </div>
         )}
-        {page.more && (
-          <button className="btn btn-wide" onClick={page.showMore}>
-            Show more ({page.remaining.toLocaleString("en-IN")} left)
+        {list.remaining > 0 && !list.error && (
+          <button className="btn btn-wide" onClick={list.loadMore} disabled={list.loading}>
+            {list.loading ? "Loading…" : `Show more (${list.remaining.toLocaleString("en-IN")} left)`}
           </button>
         )}
       </section>

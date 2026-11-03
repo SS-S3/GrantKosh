@@ -7,7 +7,7 @@ import {
   ApiError, type Content, type FunctionCall, FunctionCallingConfigMode, type GenerateContentConfig, type GenerateContentResponse, type Part, ThinkingLevel,
 } from "@google/genai";
 import type { Match } from "../../web/src/match";
-import type { Dataset } from "./data";
+import { type Dataset, type PublicOpportunity, publicOpportunity } from "./data";
 import type { KeyPool } from "./gemini";
 import { SYSTEM_PROMPT } from "./prompt";
 import { runTool, TOOLS } from "./tools";
@@ -22,6 +22,8 @@ export interface MatchSummary {
   score: number;
   reasons: string[];
   cautions: string[];
+  /** The programme itself, so the browser can show it without the dataset. */
+  program: PublicOpportunity;
 }
 
 export type AgentEvent =
@@ -152,7 +154,7 @@ export async function runAdvisor(history: ChatTurn[], emit: (e: AgentEvent) => v
     if (seen.size) {
       emit({
         type: "matches",
-        items: [...seen.values()].sort((a, b) => b.score - a.score).map(m => ({ id: m.program.id, score: Math.round(m.score), reasons: m.reasons, cautions: m.cautions })),
+        items: [...seen.values()].sort((a, b) => b.score - a.score).map(m => ({ id: m.program.id, score: Math.round(m.score), reasons: m.reasons, cautions: m.cautions, program: publicOpportunity(m.program) })),
       });
     }
   }

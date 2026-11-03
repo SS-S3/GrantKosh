@@ -16,10 +16,9 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8", ".webmanifest": "application/manifest+json", ".woff2": "font/woff2",
 };
 
-/** Long cache for content-hashed assets, an hour for the daily data files, revalidate everything else. */
+/** Long cache for content-hashed assets; revalidate everything else. */
 function cacheControl(file: string): string {
   if (file.includes(`${sep}assets${sep}`)) return "public, max-age=31536000, immutable";
-  if (file.includes(`${sep}data${sep}`)) return "public, max-age=3600, stale-while-revalidate=86400";
   return "no-cache";
 }
 
@@ -55,8 +54,6 @@ function serveStatic(req: IncomingMessage, res: ServerResponse) {
     Vary: "Accept-Encoding",
   };
   if (encoding) headers["Content-Encoding"] = encoding;
-  // The data files feed the app; keep them out of search results.
-  if (file.includes(`${sep}data${sep}`)) headers["X-Robots-Tag"] = "noindex, nofollow";
   const since = req.headers["if-modified-since"];
   if (since && Date.parse(since) >= Math.floor(stat.mtimeMs / 1000) * 1000) {
     res.writeHead(304, { "Cache-Control": headers["Cache-Control"]!, Vary: "Accept-Encoding" });

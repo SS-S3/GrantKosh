@@ -23,10 +23,12 @@ RUN npm run build:prod
 FROM node:22-alpine
 ENV NODE_ENV=production \
     PORT=8080 \
-    GRANTKOSH_DATA_DIR=/app/web/dist/data/
+    GRANTKOSH_DATA_DIR=/app/web/dist-data/
 WORKDIR /app
 COPY --from=build --chown=node:node /app/agent/dist/server.mjs agent/dist/server.mjs
 COPY --from=build --chown=node:node /app/web/dist web/dist
+# The data files sit outside the served folder; the API reads them and returns one page at a time.
+COPY --from=build --chown=node:node /app/web/dist-data web/dist-data
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1

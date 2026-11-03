@@ -23,7 +23,10 @@ jobs:
           PORT=8080 node agent/dist/server.mjs &
           for i in $(seq 1 20); do curl -fsS localhost:8080/api/health && break; sleep 0.5; done
           curl -fsS -o /dev/null localhost:8080/
-          curl -fsS -o /dev/null -H 'Accept-Encoding: br' localhost:8080/data/opportunities.json
+          curl -fsS localhost:8080/api/stats
+          curl -fsS -o /dev/null 'localhost:8080/api/funding?q=drone'
+          # The data files must not be downloadable.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/data/opportunities.json)" = 404
 
   docker:
     runs-on: ubuntu-latest
@@ -36,4 +39,5 @@ jobs:
           docker run -d --name gk -p 8080:8080 grantkosh:ci
           for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && break; sleep 1; done
           curl -fsS -o /dev/null localhost:8080/
+          curl -fsS -o /dev/null localhost:8080/api/funding
           docker logs gk

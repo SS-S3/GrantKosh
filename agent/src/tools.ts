@@ -170,7 +170,7 @@ export function getProgram(ds: Dataset, raw: unknown): ToolOutcome {
   const { id } = GetProgramInput.parse(raw);
   const o: Opportunity | undefined = ds.byId.get(id);
   if (!o) return { content: { error: `No programme with id ${id}` }, label: `Looked up ${id}`, isError: true };
-  const { amountMaxInr: _a, firstSeen: _f, ...rest } = o;
+  const { amountMaxInr: _a, firstSeen: _f, source: _s, alsoListedOn: _l, ...rest } = o;
   return { content: { ...rest, funding: amountLabel(o) || "not stated" }, label: `Read details: ${o.title}` };
 }
 

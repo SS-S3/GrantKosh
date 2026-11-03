@@ -1,6 +1,7 @@
 // GrantKosh Advisor API, shared by the long-running server (server.ts) and the Vercel functions (vercel.ts).
 //   GET  /api/health             → { ai, models, dataGeneratedAt, auth, billing }
 //   GET  /api/me                 → the caller's plan and usage
+//   GET  /api/stats, /api/funding, /api/opportunity, /api/investors, POST /api/match → the directory (directory.ts)
 //   POST /api/chat               → text/event-stream of AgentEvent JSON lines (signed-in users when auth is on)
 //   POST /api/billing/subscribe  → { sessionId, mode } to open Cashfree subscription checkout
 //   POST /api/billing/webhook    → Cashfree subscription events
@@ -18,8 +19,9 @@ import { type AccountInfo, authEnabled, getAccount, saveBilling, userIdFrom } fr
 import { billingEnabled, billingUpdate, CASHFREE_MODE, createSubscription, firstChargeAt, verifyWebhook, type WebhookEvent } from "./billing";
 import { cacheKey, getCached, putCached } from "./cache";
 import { getDataset } from "./data";
+import { funding, investors, match, MatchBody, opportunity, stats } from "./directory";
 import { apiKeys, KeyPool } from "./gemini";
-import { apiRateOk, burstOk, lockUser, recordTokens, takeChat, usage, type Verdict, withStore } from "./limits";
+import { apiRateOk, burstOk, directoryDailyOk, lockUser, recordTokens, takeChat, usage, type Verdict, withStore } from "./limits";
 import { DAILY_LIMITS, type Entitlement, entitlement, PAID_MONTHLY, PRICE_INR, TRIAL_DAYS, TRIAL_SIGNUP_DEADLINE } from "./plans";
 import { mockAi } from "./mock";
 import HEADERS from "./security-headers.json";
@@ -150,6 +152,10 @@ async function me(req: IncomingMessage, res: ServerResponse) {
     canSubscribe: billingEnabled && !!c.account,
   });
 }
+
+/** Directory pages may sit in the browser's own cache for a minute; shared caches would skip the per-IP limits. */
+const PAGE_CACHE = { "Cache-Control": "private, max-age=60" };
+const DIRECTORY = new Set(["/api/funding", "/api/investors", "/api/opportunity", "/api/match"]);
 
 const BURST = { code: "quota", error: "You've asked a lot of questions in a short time. Please wait a few minutes, or use guided matching." };
 const TOO_MANY = { code: "quota", error: "Too many requests. Please slow down." };
@@ -329,6 +335,29 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (path === "/api/billing/webhook" && req.method === "POST") return await webhook(req, res);
     if (!(await apiRateOk(clientIp(req)))) return json(res, 429, TOO_MANY, { "Retry-After": "60" });
     if (path === "/api/me" && req.method === "GET") return await me(req, res);
+    if (path === "/api/stats" && req.method === "GET") return json(res, 200, stats(getDataset()), PAGE_CACHE);
+    if (DIRECTORY.has(path)) {
+      if (!(await directoryDailyOk(clientIp(req)))) return json(res, 429, { code: "quota", error: "Daily browsing limit reached. Please come back tomorrow." }, { "Retry-After": "3600" });
+      const query = new URL(req.url ?? "/", "http://x").searchParams;
+      if (path === "/api/funding" && req.method === "GET") return json(res, 200, funding(getDataset(), query), PAGE_CACHE);
+      if (path === "/api/investors" && req.method === "GET") return json(res, 200, investors(getDataset(), query), PAGE_CACHE);
+      if (path === "/api/opportunity" && req.method === "GET") {
+        const o = opportunity(getDataset(), String(query.get("id") ?? ""));
+        return o ? json(res, 200, o, PAGE_CACHE) : json(res, 404, { error: "not found" });
+      }
+      if (path === "/api/match") {
+        if (req.method !== "POST") return json(res, 405, { error: "POST only" });
+        if (!originOk(req)) return json(res, 403, { error: "cross-site request refused" });
+        if (!isJson(req)) return json(res, 415, { error: "send application/json" });
+        let body: z.infer<typeof MatchBody>;
+        try {
+          body = MatchBody.parse(JSON.parse(await readBody(req, 8 * 1024)));
+        } catch (err) {
+          return json(res, 400, { error: err instanceof z.ZodError ? err.issues[0]?.message : "invalid JSON body" });
+        }
+        return json(res, 200, { items: match(getDataset(), body) });
+      }
+    }
     const post = path === "/api/chat" || path === "/api/billing/subscribe";
     if (post && req.method !== "POST") return json(res, 405, { error: "POST only" });
     if (post && !originOk(req)) return json(res, 403, { error: "cross-site request refused" });

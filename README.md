@@ -41,7 +41,7 @@ it offers, its status, and what to check.
 - **Grounded.** The model never sees the dataset directly. It calls three tools: `find_programs`, which scores
   programmes against the founder's profile; `get_program`; and `find_investors`. It may cite only ids those tools
   return, and every cited id becomes a clickable card linking to the official page.
-- **One matching engine.** Ranking lives in `web/src/match.ts` and is shared by the agent and the browser.
+- **One matching engine.** Ranking lives in `web/src/match.ts` and is used by both the agent and the directory API.
   Scoring covers sector, stage, state rules, founder focus, DPIIT, entity type, equity preference, amount,
   timing, data quality and a flagship boost.
 - **Free-tier safe.**
@@ -49,8 +49,8 @@ it offers, its status, and what to check.
   - Thinking is kept low, and each answer is capped at 5 tool steps.
   - Per-IP and daily request caps apply.
   - Inputs are validated.
-- **Works without AI.** If no key is configured, the quota runs out, or the site is a static host (GitHub Pages),
-  the tab switches to **Guided match**: a short form ranked in the browser with the same engine.
+- **Works without AI.** If no key is configured or the quota runs out, the tab switches to **Guided match**:
+  a short form ranked on the server with the same engine.
 
 Run it:
 
@@ -117,14 +117,14 @@ when its sitemap `lastmod` changes, and an official page only when its cached fa
 See **[DEPLOY.md](DEPLOY.md)**:
 - **Render** — one click from `render.yaml`, free, with the AI advisor.
 - **Docker** — via the included `Dockerfile`, for Cloud Run, Fly.io, Railway or a VPS.
-- **GitHub Pages** — static, guided matching only.
 
-The production build is `npm run build:prod`, and `npm start` serves the UI, the data and the advisor API from one Node process.
+The production build is `npm run build:prod`, and `npm start` serves the UI and the API from one Node process.
+The browser never downloads the dataset: search and filters run on the server and return one page at a time.
 
 ## Data use
 
-`web/public/data/opportunities.json`, `investors.json` and `meta.json` are the whole database. You can use
-them as a free API straight from the repo or the deployed site.
+`web/public/data/opportunities.json`, `investors.json` and `meta.json` are the whole database, written by the
+daily scrape. The deployed site does not publish them; the app reads them through its API.
 
 ## Disclaimer
 

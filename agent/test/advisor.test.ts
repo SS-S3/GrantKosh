@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { rankPrograms, scoreProgram } from "../../web/src/match";
 import type { Opportunity } from "../../web/src/types";
 import { type AgentEvent, errorEvent, runAdvisor } from "../src/agent";
-import { buildDataset } from "../src/data";
+import { buildDataset, publicId } from "../src/data";
 import { KeyPool } from "../src/gemini";
 import { findPrograms, runTool } from "../src/tools";
 
@@ -69,7 +69,7 @@ describe("tools", () => {
   it("find_programs ranks, explains and returns compact records", () => {
     const out = findPrograms(ds, { query: "iDEX", sectors: ["defence"], stage: "prototype" }, TODAY);
     const results = out.content.results as Array<{ id: string; why: string[] }>;
-    expect(results[0]!.id).toBe("curated:idex-disc");
+    expect(results[0]!.id).toBe(publicId("curated:idex-disc"));
     expect(results[0]!.why.length).toBeGreaterThan(0);
     expect(out.label).toMatch(/Searched 8 programmes/);
   });
@@ -81,7 +81,7 @@ describe("tools", () => {
   it("uses the query as a boost, not a filter, when profile facts are given", () => {
     const out = findPrograms(ds, { query: "zzqqxx", stage: "idea" }, TODAY);
     expect(out.content.note).toBeUndefined();
-    expect((out.content.results as Array<{ id: string }>).map(r => r.id)).toContain("curated:nidhi-prayas");
+    expect((out.content.results as Array<{ id: string }>).map(r => r.id)).toContain(publicId("curated:nidhi-prayas"));
   });
   it("rejects invalid model arguments instead of running them", () => {
     const out = runTool(ds, "find_programs", { stage: "series-z" });
@@ -116,6 +116,13 @@ const pool = (...ais: GoogleGenAI[]) => new KeyPool(ais.map((ai, i) => ({ id: i 
 describe("runAdvisor", () => {
   const ds = buildDataset(DATA, [], "2026-10-08T00:00:00Z", TODAY);
 
+  it("gives records opaque, stable ids that don't name the source", () => {
+    expect(publicId("curated:idex-disc")).toBe(publicId("curated:idex-disc"));
+    expect(publicId("curated:idex-disc")).toMatch(/^[\w-]{12}$/);
+    expect(ds.byId.has(publicId("curated:idex-disc"))).toBe(true);
+    expect(ds.byId.has("curated:idex-disc")).toBe(false);
+  });
+
   it("calls tools, replays thought signatures and streams the final answer", async () => {
     const calls: Array<{ model: string; contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }> = [];
     const ai = fakeAi(
@@ -135,7 +142,7 @@ describe("runAdvisor", () => {
     expect(text).toBe("Best fit: **iDEX DISC** [[curated:idex-disc]]");
     expect(events.some(e => e.type === "tool")).toBe(true);
     const matches = events.find(e => e.type === "matches") as { items: Array<{ id: string }> };
-    expect(matches.items[0]!.id).toBe("curated:idex-disc");
+    expect(matches.items[0]!.id).toBe(publicId("curated:idex-disc"));
     expect(events.at(-1)).toEqual({ type: "done", model: "m1" });
 
     // Second request carries the model turn verbatim (with its signature) and the function response.

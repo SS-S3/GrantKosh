@@ -9,7 +9,6 @@ Funding Advisor API. Production build: `npm run build:prod`. Start: `npm start`.
 | **Oracle Cloud Always Free VM (as you grow)** | Free (domain only) | Yes | ~45 min, SSH |
 | A. Render free + keep-awake monitor | Free | Yes | ~15 min, no CLI |
 | B. Docker (Google Cloud Run, Fly.io, Railway, any VPS) | Free tiers / cheap | Yes | ~15 min |
-| C. GitHub Pages | Free | No (guided matching only) | ~5 min |
 
 **Plan:** launch on Vercel, then move to Oracle once you pass roughly 200 users, or sooner if the Pro plan
 costs more than subscriptions bring in. The same repo, environment variables, Clerk app, Cashfree plan and
@@ -127,7 +126,8 @@ real token use is logged (`[usage] plan=… model=… in=… out=…`) and added
 | `ADVISOR_DAILY_LIMIT` | 2000 per day, everyone | Hard ceiling under your Gemini quota and budget. Counted per Gemini day (midnight Pacific), when Google resets quotas |
 | `ADVISOR_GLOBAL_RPM` | 60 per minute, everyone | Counted in 10-second windows. When a window is full, a chat waits for the next one (the person sees "you're next in line"), for up to `ADVISOR_QUEUE_WAIT_MS` = 20 s, then gets "busy, try again in a minute". Set it under your Gemini requests-per-minute quota divided by ~3 (calls per answer). |
 | `ADVISOR_PER_IP_LIMIT` | 12 chats per IP per 10 min | Stops scripts before any account lookup |
-| `ADVISOR_IP_API_PER_MIN` | 60 API calls per IP per minute | Every API route except health and the signed Cashfree webhook |
+| `ADVISOR_IP_API_PER_MIN` | 90 API calls per IP per minute | Every API route except health and the signed Cashfree webhook |
+| `ADVISOR_IP_DIRECTORY_PER_DAY` | 1,500 directory requests per IP per day | Slows anyone copying the directory page by page |
 | One answer at a time per account | fixed | A second chat while one is running gets "still being answered" |
 | `ADVISOR_CACHE_TTL_S` | 6 hours | An opening question identical to an earlier one (ignoring case and spacing) replays the stored answer: no model call, and no wait when busy. It still counts against the person's own limits. Cleared daily with the data. `0` turns it off. |
 
@@ -357,14 +357,6 @@ To pick up new data, redeploy after the daily data commit, or connect Cloud Buil
 **Fly.io / Railway / VPS:** use the Dockerfile, set `GEMINI_API_KEY` as a secret, set `TRUST_PROXY=1` behind
 their proxy, and expose port 8080 (or set `PORT`).
 
-## C. GitHub Pages (static, no AI)
-
-Settings → Pages → Source: *GitHub Actions*. Then Settings → Secrets and variables → Actions → Variables →
-add `DEPLOY_PAGES` = `true`. The daily workflow builds and publishes the site. The Advisor tab uses guided
-matching in the browser.
-
----
-
 ## Environment variables
 
 | Variable | Default | Purpose |
@@ -373,7 +365,8 @@ matching in the browser.
 | `GEMINI_MODELS` | `gemini-3.8-flash,gemini-2.5-flash,gemini-3.5-flash-lite` | Trial and paid plans. Tried in order; falls back when one is rate-limited |
 | `GEMINI_MODELS_FREE` | `gemini-3.5-flash-lite,gemini-2.5-flash-lite` | Free plan |
 | `ADVISOR_PER_IP_LIMIT` | `12` | Chats per IP per 10 minutes |
-| `ADVISOR_IP_API_PER_MIN` | `60` | API calls per IP per minute |
+| `ADVISOR_IP_API_PER_MIN` | `90` | API calls per IP per minute |
+| `ADVISOR_IP_DIRECTORY_PER_DAY` | `1500` | Directory requests (search pages, details, guided matches) per IP per day |
 | `ADVISOR_FREE_DAILY` | `2` | Chats per day for a free account (or per IP when sign-in is off) |
 | `ADVISOR_TRIAL_DAILY`, `ADVISOR_TRIAL_TOTAL` | `5`, `80` | Trial chats per day and in all |
 | `ADVISOR_PAID_DAILY`, `ADVISOR_PAID_MONTHLY` | `15`, `120` | Paid chats per day and per calendar month |
@@ -399,17 +392,23 @@ matching in the browser.
 
 ## Keeping the data private
 
-The site no longer advertises its sources, links to the data files, or offers CSV export, and search engines
-are told not to index `/data/` (`robots.txt` and an `X-Robots-Tag` header). This stops casual copying only:
-- The browser still downloads `data/opportunities.json` and `investors.json` to search and filter, so
-  anyone can save them from the browser's developer tools.
-- If the GitHub repository is public, the data and its daily history are public there too. Make the
-  repository private (Settings → General → Danger zone → Change visibility). Vercel, the Actions workflows
-  and GHCR keep working; a private GHCR image needs `docker login ghcr.io` on the Oracle VM with a
-  read-only token. Copies made while it was public, under the previous CC BY 4.0 notice, can't be recalled.
+The browser never downloads the data files. Search, filters, programme details and guided matching all go
+through the API (`agent/src/directory.ts`), which returns at most 50 records per request:
+- `/data/*.json` is not served (404). The build moves the files to `web/dist-data/`, outside the site.
+- Records get opaque ids (`?open=-PZ8CCMqSDFi`), and the API leaves out source fields.
+- The site doesn't name its sources, link to data files or offer CSV export.
+- Each IP may make `ADVISOR_IP_API_PER_MIN` (90) API calls a minute and `ADVISOR_IP_DIRECTORY_PER_DAY`
+  (1,500) directory requests a day. Directory responses are cached only in the visitor's own browser, so a
+  CDN never answers past those limits.
 
-Fully hiding the data needs server-side search: the browser sends the query and gets back one page of
-results, never the whole file. That fits the planned tag index, with per-IP limits against scraping.
+This makes bulk copying slow, not impossible: someone using many IP addresses can still page through
+everything. Vercel's Firewall rate-limit rules (see *Bots, abuse and DDoS*) and Bot Protection add an edge
+layer.
+
+**The GitHub repository:** if it is public, the data and its daily history are public there. Make it private
+(Settings → General → Danger zone → Change visibility). Vercel, the Actions workflows and GHCR keep working;
+a private GHCR image needs `docker login ghcr.io` on the Oracle VM with a read-only token. Copies made while
+it was public, under the earlier CC BY 4.0 notice, can't be recalled.
 
 ## What's already production-ready
 

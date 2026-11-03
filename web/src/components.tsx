@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { api, type Page } from "./data";
 import { label } from "./labels";
 
 export function FilterGroup(props: {
@@ -85,12 +86,12 @@ export function Modal(props: { open: boolean; onClose: () => void; children: Rea
 }
 
 export function SearchBox(props: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  // Debounce so typing stays smooth over thousands of records.
+  // Debounce so a search is sent once typing pauses, not on every key.
   const [draft, setDraft] = useState(props.value);
   useEffect(() => setDraft(props.value), [props.value]);
   useEffect(() => {
     if (draft === props.value) return;
-    const t = setTimeout(() => props.onChange(draft), 160);
+    const t = setTimeout(() => props.onChange(draft), 300);
     return () => clearTimeout(t);
   }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -103,8 +104,42 @@ export function SearchBox(props: { value: string; onChange: (v: string) => void;
   );
 }
 
-export function useShowMore<T>(rows: T[], step: number, resetKey: unknown) {
-  const [n, setN] = useState(step);
-  useEffect(() => setN(step), [resetKey, step]);
-  return { visible: rows.slice(0, n), more: rows.length > n, showMore: () => setN(x => x + step), remaining: Math.max(0, rows.length - n) };
+/**
+ * One filtered list from the directory API: the first page whenever the query changes, more on request.
+ * Earlier pages stay on screen while the next query loads, so the list doesn't flash empty.
+ */
+export function usePaged<T, K extends string>(endpoint: string, query: string) {
+  const [page, setPage] = useState<Page<T, K> | null>(null);
+  const [items, setItems] = useState<T[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    api<Page<T, K>>(`${endpoint}?${query}`, { signal: ctrl.signal })
+      .then(p => {
+        setPage(p);
+        setItems(p.items);
+        setError("");
+      })
+      .catch(e => {
+        if ((e as Error).name !== "AbortError") setError((e as Error).message);
+      })
+      .finally(() => !ctrl.signal.aborted && setLoading(false));
+    return () => ctrl.abort();
+  }, [endpoint, query]);
+  const loadMore = async () => {
+    setLoading(true);
+    try {
+      const sep = query ? "&" : "";
+      const next = await api<Page<T, K>>(`${endpoint}?${query}${sep}offset=${items.length}`);
+      setItems(xs => [...xs, ...next.items]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const total = page?.total ?? 0;
+  return { page, items, total, loading, error, remaining: Math.max(0, total - items.length), loadMore };
 }

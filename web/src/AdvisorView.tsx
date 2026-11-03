@@ -1,12 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SignInCta, startSubscription, useAccount, type Me } from "./account";
 import { Modal } from "./components";
-import type { Dataset } from "./data";
+import { api, type MatchResult, type PublicOpportunity, type Stats } from "./data";
 import { amountLabel, deadlineLabel } from "./format";
 import { OppDetail } from "./FundingView";
 import { FOUNDER, label, PROGRAM_TYPE, SECTOR, STAGE, STATES } from "./labels";
-import { rankPrograms, type Match, type StartupProfile } from "./match";
-import type { Opportunity } from "./types";
+import type { StartupProfile } from "./match";
 
 // ---------- protocol (mirrors agent/src/agent.ts AgentEvent) ----------
 interface MatchSummary {
@@ -14,6 +13,7 @@ interface MatchSummary {
   score: number;
   reasons: string[];
   cautions: string[];
+  program: PublicOpportunity;
 }
 type AgentEvent =
   | { type: "status"; text: string }
@@ -66,7 +66,7 @@ async function streamChat(messages: Array<{ role: string; content: string }>, he
 }
 
 // ---------- tiny, safe markdown: **bold**, lists, paragraphs, [[program-id]] chips ----------
-function Inline({ text, byId, onOpen }: { text: string; byId: Map<string, Opportunity>; onOpen: (id: string) => void }) {
+function Inline({ text, byId, onOpen }: { text: string; byId: Map<string, PublicOpportunity>; onOpen: (id: string) => void }) {
   const parts = text.split(/(\*\*[^*]+\*\*|\[\[[^\]]+\]\])/g);
   return (
     <>
@@ -87,7 +87,7 @@ function Inline({ text, byId, onOpen }: { text: string; byId: Map<string, Opport
   );
 }
 
-function RichText({ text, byId, onOpen }: { text: string; byId: Map<string, Opportunity>; onOpen: (id: string) => void }) {
+function RichText({ text, byId, onOpen }: { text: string; byId: Map<string, PublicOpportunity>; onOpen: (id: string) => void }) {
   const blocks: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
   const flush = () => {
@@ -130,7 +130,7 @@ function RichText({ text, byId, onOpen }: { text: string; byId: Map<string, Oppo
   return <div className="rich">{blocks}</div>;
 }
 
-function MatchCard({ o, m, today, onOpen }: { o: Opportunity; m?: { reasons: string[]; cautions: string[] }; today: string; onOpen: () => void }) {
+function MatchCard({ o, m, today, onOpen }: { o: PublicOpportunity; m?: { reasons: string[]; cautions: string[] }; today: string; onOpen: () => void }) {
   const dl = deadlineLabel(o, today);
   return (
     <li className="mcard">
@@ -154,15 +154,25 @@ const NEEDS = [
   { v: "", l: "Not sure" }, { v: "500000", l: "Up to ₹5L" }, { v: "2500000", l: "₹5L–25L" }, { v: "10000000", l: "₹25L–1Cr" }, { v: "50000000", l: "₹1Cr+" },
 ];
 
-function GuidedMatcher({ data, onOpen }: { data: Dataset; onOpen: (id: string) => void }) {
+function GuidedMatcher({ today, onOpen }: { today: string; onOpen: (o: PublicOpportunity) => void }) {
   const [p, setP] = useState<StartupProfile & { text: string }>({ sectors: [], founderTypes: [], text: "" });
-  const [results, setResults] = useState<Match[] | null>(null);
+  const [results, setResults] = useState<MatchResult[] | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const toggle = <K extends "sectors" | "founderTypes">(k: K, v: string) =>
     setP(s => ({ ...s, [k]: (s[k] as string[]).includes(v) ? (s[k] as string[]).filter(x => x !== v) : [...(s[k] as string[]), v] }));
-  const run = () => {
-    const text = p.text.trim() ? new Map(data.oppIndex.search(p.text, { combineWith: "OR" }).map(r => [r.id as string, r.score])) : null;
-    const hasProfile = !!(p.sectors?.length || p.stage || p.state || p.founderTypes?.length);
-    setResults(rankPrograms(data.opportunities, p, data.today, text, 12, hasProfile ? "boost" : "filter"));
+  const run = async () => {
+    const { text, ...profile } = p;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api<{ items: MatchResult[] }>("match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, profile }) });
+      setResults(res.items);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="guided">
@@ -223,14 +233,15 @@ function GuidedMatcher({ data, onOpen }: { data: Dataset; onOpen: (id: string) =
       <div className="g-row g-switches">
         <label className="fopt"><input type="checkbox" checked={p.equityOk === false} onChange={e => setP(s => ({ ...s, equityOk: e.target.checked ? false : undefined }))} /> Non-dilutive only</label>
         <label className="fopt"><input type="checkbox" checked={!!p.international} onChange={e => setP(s => ({ ...s, international: e.target.checked }))} /> Include international</label>
-        <button className="btn btn-primary" onClick={run}>Find my matches</button>
+        <button className="btn btn-primary" onClick={() => void run()} disabled={busy}>{busy ? "Matching…" : "Find my matches"}</button>
       </div>
+      {error && <p className="chat-error">{error}</p>}
       {results && (
         results.length ? (
           <>
             <p className="result-meta"><b>{results.length}</b> best matches, ranked on your profile</p>
             <ul className="mcards">
-              {results.map(m => <MatchCard key={m.program.id} o={m.program} m={m} today={data.today} onOpen={() => onOpen(m.program.id)} />)}
+              {results.map(m => <MatchCard key={m.program.id} o={m.program} m={m} today={today} onOpen={() => onOpen(m.program)} />)}
             </ul>
           </>
         ) : <p className="empty">No open programmes match yet. Try fewer filters.</p>
@@ -319,7 +330,7 @@ function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
 }
 
 // ---------- main view ----------
-export function AdvisorView({ data }: { data: Dataset }) {
+export function AdvisorView({ stats }: { stats: Stats }) {
   const account = useAccount();
   const [ai, setAi] = useState<boolean | null>(null);
   /** The server wants a signed-in user for chat. */
@@ -330,10 +341,12 @@ export function AdvisorView({ data }: { data: Dataset }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<PublicOpportunity | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const byId = useMemo(() => new Map(data.opportunities.map(o => [o.id, o])), [data]);
+  // Every programme the advisor has returned in this conversation, for cards and [[id]] chips.
+  const byId = useMemo(() => new Map(turns.flatMap(t => t.matches ?? []).map(m => [m.id, m.program])), [turns]);
+  const openId = (id: string) => setSelected(byId.get(id) ?? null);
 
   useEffect(() => {
     fetch("api/health")
@@ -415,8 +428,6 @@ export function AdvisorView({ data }: { data: Dataset }) {
     }
   };
 
-  const selected = openId ? byId.get(openId) ?? null : null;
-
   /** Cards to show under an answer: programmes it cited, in order; else its top matches. */
   const cardsFor = (t: Turn) => {
     const cited = [...new Set([...t.text.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => m[1]!.trim()))].filter(id => byId.has(id));
@@ -431,7 +442,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
         <div>
           <h2>Funding Advisor</h2>
           <p className="note">
-            Describe your startup. The advisor searches {data.opportunities.length.toLocaleString("en-IN")} programmes, including iDEX, NIDHI, BIRAC, SISFS, MeitY TIDE and state schemes, and explains which fit and why.
+            Describe your startup. The advisor searches {stats.programs.toLocaleString("en-IN")} programmes, including iDEX, NIDHI, BIRAC, SISFS, MeitY TIDE and state schemes, and explains which fit and why.
           </p>
         </div>
         <div className="seg" role="tablist" aria-label="Advisor mode">
@@ -446,8 +457,8 @@ export function AdvisorView({ data }: { data: Dataset }) {
 
       {mode === "guided" ? (
         <>
-          {ai === false && <p className="note">AI chat isn't available here, so the guided matcher runs in your browser using the same ranking rules.</p>}
-          <GuidedMatcher data={data} onOpen={setOpenId} />
+          {ai === false && <p className="note">AI chat isn't available here, so the guided matcher ranks programmes with the same rules.</p>}
+          <GuidedMatcher today={stats.today} onOpen={setSelected} />
         </>
       ) : (
         <div className="chat">
@@ -476,7 +487,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
                       {l}
                     </div>
                   ))}
-                  {t.text && <RichText text={t.text} byId={byId} onOpen={setOpenId} />}
+                  {t.text && <RichText text={t.text} byId={byId} onOpen={openId} />}
                   {t.pending && !t.text && <div className="typing">{status || "Thinking…"}</div>}
                   {t.error && (
                     <div className="chat-error">
@@ -493,7 +504,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
                   {cardsFor(t).length > 0 && (
                     <ul className="mcards">
                       {cardsFor(t).map(({ o, m }) => (
-                        <MatchCard key={o.id} o={o} m={m} today={data.today} onOpen={() => setOpenId(o.id)} />
+                        <MatchCard key={o.id} o={o} m={m} today={stats.today} onOpen={() => setSelected(o)} />
                       ))}
                     </ul>
                   )}
@@ -539,8 +550,8 @@ export function AdvisorView({ data }: { data: Dataset }) {
         </div>
       )}
 
-      <Modal open={!!selected} onClose={() => setOpenId(null)} labelledBy="opp-title">
-        {selected && <OppDetail o={selected} today={data.today} />}
+      <Modal open={!!selected} onClose={() => setSelected(null)} labelledBy="opp-title">
+        {selected && <OppDetail o={selected} today={stats.today} />}
       </Modal>
     </section>
   );

@@ -1,4 +1,4 @@
-import type { Opportunity } from "./types";
+import type { PublicOpportunity } from "./data";
 
 const SYMBOL: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
 
@@ -18,7 +18,7 @@ export function money(value: number | null, currency: string | null): string {
 }
 const trim = (n: number) => String(+n.toFixed(n >= 100 ? 0 : 2));
 
-export function amountLabel(o: Opportunity): string {
+export function amountLabel(o: PublicOpportunity): string {
   if (o.amountMax == null) return "";
   if (o.amountMin != null && o.amountMin < o.amountMax) return `${money(o.amountMin, o.currency)} – ${money(o.amountMax, o.currency)}`;
   return `Up to ${money(o.amountMax, o.currency)}`;
@@ -35,7 +35,7 @@ export function fmtDate(iso: string | null): string {
 }
 
 /** "Closes today!", "Closes in 5 days", "Rolling / open", "Closed 3 Sep 2026"… */
-export function deadlineLabel(o: Opportunity, today: string): { text: string; tone: "urgent" | "soon" | "ok" | "muted" } {
+export function deadlineLabel(o: PublicOpportunity, today: string): { text: string; tone: "urgent" | "soon" | "ok" | "muted" } {
   if (o.status === "closed") return { text: o.deadline ? `Closed ${fmtDate(o.deadline)}` : "Closed", tone: "muted" };
   if (o.status === "upcoming") return { text: o.opensAt ? `Opens ${fmtDate(o.opensAt)}` : "Opening soon", tone: "ok" };
   if (o.deadline) {

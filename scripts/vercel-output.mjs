@@ -1,6 +1,6 @@
 // Writes a Vercel Build Output (https://vercel.com/docs/build-output-api/v3) to .vercel/output/:
-//   static/            the built site from web/dist, served by Vercel's CDN
-//   functions/api/*    the Advisor API (agent/src/vercel.ts) bundled with esbuild, plus a copy of the data
+//   static/            the built site from web/dist, served by Vercel's CDN (without the data files)
+//   functions/api/*    the API (agent/src/vercel.ts) bundled with esbuild, plus a private copy of the data
 //   config.json        cache and security headers, and the single-page-app fallback to index.html
 // Run after `npm run build`. Usage: node scripts/vercel-output.mjs
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -9,8 +9,11 @@ import { build } from "esbuild";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = `${root}web/dist`;
+// scripts/private-data.mjs moved the data out of web/dist, so it is never served as a static file.
+const dataDir = `${root}web/dist-data`;
 const out = `${root}.vercel/output`;
 if (!existsSync(`${dist}/index.html`)) throw new Error("web/dist is missing. Run `npm run build` first.");
+if (!existsSync(`${dataDir}/opportunities.json`)) throw new Error("web/dist-data is missing. Run `npm run build` first.");
 
 rmSync(out, { recursive: true, force: true });
 // Vercel compresses responses itself, so leave out the .br/.gz copies made by scripts/compress.mjs.
@@ -40,12 +43,13 @@ await build({
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
 });
 
-for (const name of ["health", "me", "chat", "billing/subscribe", "billing/webhook"]) {
+/** Functions that read the dataset get their own copy of it. */
+const READS_DATA = new Set(["health", "chat", "stats", "funding", "opportunity", "investors", "match"]);
+for (const name of ["health", "me", "chat", "stats", "funding", "opportunity", "investors", "match", "billing/subscribe", "billing/webhook"]) {
   const fn = `${out}/functions/api/${name}.func`;
   mkdirSync(`${fn}/data`, { recursive: true });
   cpSync(bundle, `${fn}/index.mjs`);
-  // Only health and chat read the dataset.
-  if (name === "health" || name === "chat") for (const file of ["opportunities.json", "investors.json", "meta.json"]) cpSync(`${dist}/data/${file}`, `${fn}/data/${file}`);
+  if (READS_DATA.has(name)) for (const file of ["opportunities.json", "investors.json", "meta.json"]) cpSync(`${dataDir}/${file}`, `${fn}/data/${file}`);
   writeFileSync(
     `${fn}/.vc-config.json`,
     JSON.stringify({
@@ -68,10 +72,9 @@ writeFileSync(
     version: 3,
     routes: [
       { src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true },
-      { src: "/data/(.*)", headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400", "X-Robots-Tag": "noindex, nofollow" }, continue: true },
       { src: "/(.*)", headers: { ...SECURITY_HEADERS, ...hsts }, continue: true },
       { handle: "filesystem" },
-      // Unknown asset, data and API paths are real 404s; anything else is a client-side route.
+      // Unknown asset and API paths, and /data/ (no longer served), are real 404s; anything else is a client-side route.
       { src: "/(assets|data|api)/.*", status: 404 },
       { src: "/.*", dest: "/index.html" },
     ],

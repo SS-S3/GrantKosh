@@ -1,6 +1,7 @@
 // Advisor rate limits and load control:
-//   ip       per IP: ADVISOR_PER_IP_LIMIT chats per 10 minutes, and ADVISOR_IP_API_PER_MIN API calls per
-//            minute on every route, so scripts are stopped before any account lookup or model call
+//   ip       per IP: ADVISOR_PER_IP_LIMIT chats per 10 minutes, ADVISOR_IP_API_PER_MIN API calls per
+//            minute on every route, and ADVISOR_IP_DIRECTORY_PER_DAY directory pages per day, so scripts
+//            are stopped before any account lookup or model call, and copying the directory is slow
 //   user     per account per IST day, by plan (plans.ts), plus the trial total or the paid monthly cap
 //   lock     one answer at a time per account, so a script can't fan out parallel chats
 //   pool     all free-plan chats per Gemini day, ADVISOR_FREE_POOL_DAILY, so free users cannot use up
@@ -19,7 +20,8 @@ export type Verdict = "ok" | "user" | "period" | "pool" | "global" | "busy";
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const PER_IP_LIMIT = env("ADVISOR_PER_IP_LIMIT", 12);
 const PER_IP_WINDOW_S = 10 * 60;
-const IP_API_PER_MIN = env("ADVISOR_IP_API_PER_MIN", 60);
+const IP_API_PER_MIN = env("ADVISOR_IP_API_PER_MIN", 90);
+const IP_DIRECTORY_PER_DAY = env("ADVISOR_IP_DIRECTORY_PER_DAY", 1500);
 const FREE_POOL_DAILY = env("ADVISOR_FREE_POOL_DAILY", 300);
 const GLOBAL_DAILY = env("ADVISOR_DAILY_LIMIT", 2000);
 const RATE_WINDOW_S = 10;
@@ -154,6 +156,12 @@ export function burstOk(ip: string, now = Date.now()): Promise<boolean> {
 export function apiRateOk(ip: string, now = Date.now()): Promise<boolean> {
   const key = `gk:ipa:${ip}:${Math.floor(now / 60_000)}`;
   return withStore(async s => (await s.incr([key], 60))[0]! <= IP_API_PER_MIN);
+}
+
+/** Counts a directory page against the caller's IP for the day; false past the daily cap (slows bulk copying). */
+export function directoryDailyOk(ip: string, now = Date.now()): Promise<boolean> {
+  const key = `gk:ipd:${ip}:${istDay(now)}`;
+  return withStore(async s => (await s.incr([key], DAY_TTL_S))[0]! <= IP_DIRECTORY_PER_DAY);
 }
 
 // ---------- per account ----------

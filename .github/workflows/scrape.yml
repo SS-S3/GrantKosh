@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: scrape
@@ -41,22 +39,5 @@ jobs:
           git add web/public/data data/state
           git diff --cached --quiet || git commit -m "data: daily scrape $(date +%F)"
           git push
-      # Static GitHub Pages copy (guided matching only, no AI). Enable with repo variable DEPLOY_PAGES=true.
-      # Render/Docker deployments redeploy from the data commit above instead.
-      - if: vars.DEPLOY_PAGES == 'true'
-        run: npm run build
-      - if: vars.DEPLOY_PAGES == 'true'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: web/dist
-
-  deploy:
-    needs: scrape
-    if: vars.DEPLOY_PAGES == 'true'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Vercel, Render and the Oracle image (image.yml) redeploy from the data commit above.
+      # There is no static-only copy: the directory needs the API, so the data files are never published.

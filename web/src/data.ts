@@ -1,61 +1,51 @@
-import MiniSearch from "minisearch";
-import type { DatasetMeta, Investor, Opportunity, Status } from "./types";
-import { todayIso } from "./format";
+// The directory lives on the server: the browser asks the API for one page at a time and never
+// downloads the dataset (see agent/src/directory.ts).
+import type { Investor, Opportunity } from "./types";
 
-export interface Dataset {
-  opportunities: Opportunity[];
-  investors: Investor[];
-  meta: DatasetMeta;
-  oppIndex: MiniSearch<Opportunity>;
-  invIndex: MiniSearch<Investor>;
+/** A programme as the API sends it: without the fields that say where it came from. */
+export type PublicOpportunity = Omit<Opportunity, "source" | "alsoListedOn">;
+export type PublicInvestor = Omit<Investor, "source" | "sourceUrl">;
+
+export interface Stats {
+  programs: number;
+  openNow: number;
+  investors: number;
+  generatedAt: string;
+  /** Today in India, which the server used for statuses and deadlines. */
   today: string;
 }
 
-const base = import.meta.env.BASE_URL;
-
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${base}data/${path}`);
-  if (!res.ok) throw new Error(`Couldn't load data/${path} (HTTP ${res.status}). Run "npm run scrape" first.`);
-  return res.json() as Promise<T>;
+export interface Page<T, K extends string> {
+  total: number;
+  offset: number;
+  items: T[];
+  counts: Record<K, Array<[string, number]>>;
+  /** True when a text search is applied (so "Best match" sorting is available). */
+  searching: boolean;
+  sort?: string;
 }
 
-/** The data may be days old; re-derive date-based status against the viewer's today. */
-function liveStatus(o: Opportunity, today: string): Status {
-  if (o.deadline) {
-    if (o.deadline < today) return "closed";
-    if (o.opensAt && o.opensAt > today) return "upcoming";
-    return "open";
+export interface MatchResult {
+  program: PublicOpportunity;
+  score: number;
+  reasons: string[];
+  cautions: string[];
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
   }
-  if (o.opensAt) return o.opensAt > today ? "upcoming" : o.status === "upcoming" ? "open" : o.status;
-  return o.status;
 }
 
-/** One typo allowed from 4 letters, two from 9; none for very short words like "ai". */
-const typoTolerance = (term: string) => (term.length >= 9 ? 2 : term.length >= 4 ? 1 : false);
-
-export async function loadDataset(): Promise<Dataset> {
-  const [opps, investors, meta] = await Promise.all([
-    getJson<Opportunity[]>("opportunities.json"),
-    getJson<Investor[]>("investors.json"),
-    getJson<DatasetMeta>("meta.json"),
-  ]);
-  const today = todayIso();
-  const opportunities = opps.map(o => ({ ...o, status: liveStatus(o, today) }));
-
-  const oppIndex = new MiniSearch<Opportunity>({
-    fields: ["title", "provider", "summary", "tagText"],
-    storeFields: [],
-    extractField: (doc, field) => (field === "tagText" ? [...doc.tags, ...doc.sectors, doc.programType].join(" ") : (doc as unknown as Record<string, string>)[field]),
-    searchOptions: { boost: { title: 3, provider: 2, tagText: 1.5 }, prefix: true, fuzzy: typoTolerance, combineWith: "AND" },
-  });
-  oppIndex.addAll(opportunities);
-
-  const invIndex = new MiniSearch<Investor>({
-    fields: ["name", "city", "state", "category", "registrationNo", "email"],
-    storeFields: [],
-    searchOptions: { boost: { name: 3 }, prefix: true, fuzzy: typoTolerance, combineWith: "AND" },
-  });
-  invIndex.addAll(investors);
-
-  return { opportunities, investors, meta, oppIndex, invIndex, today };
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`api/${path}`, init);
+  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) throw new ApiError(body.error ?? `Couldn't load the directory (HTTP ${res.status}).`, res.status);
+  return body;
 }
+
+export const loadStats = () => api<Stats>("stats");
+export const loadOpportunity = (id: string) => api<PublicOpportunity>(`opportunity?id=${encodeURIComponent(id)}`);
