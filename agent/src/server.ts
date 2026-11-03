@@ -4,7 +4,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MODELS, MOCK, ai, handleApi, json, setSecurityHeaders } from "./api";
+import { FREE_MODELS, MODELS, MOCK, handleApi, json, keys, setSecurityHeaders } from "./api";
 import { getDataset } from "./data";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -55,6 +55,8 @@ function serveStatic(req: IncomingMessage, res: ServerResponse) {
     Vary: "Accept-Encoding",
   };
   if (encoding) headers["Content-Encoding"] = encoding;
+  // The data files feed the app; keep them out of search results.
+  if (file.includes(`${sep}data${sep}`)) headers["X-Robots-Tag"] = "noindex, nofollow";
   const since = req.headers["if-modified-since"];
   if (since && Date.parse(since) >= Math.floor(stat.mtimeMs / 1000) * 1000) {
     res.writeHead(304, { "Cache-Control": headers["Cache-Control"]!, Vary: "Accept-Encoding" });
@@ -79,10 +81,15 @@ export const server = createServer(async (req, res) => {
   }
 });
 
+// Slow or half-sent requests (slowloris) are cut off; streamed answers are responses, so they aren't.
+server.headersTimeout = 15_000;
+server.requestTimeout = 30_000;
+server.maxHeadersCount = 64;
+
 const isMain = !!process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`GrantKosh Advisor on http://localhost:${PORT}  (AI: ${MOCK ? "MOCK" : ai ? MODELS.join(" → ") : "off, guided mode only"}; data: ${getDataset().opportunities.length} programmes)`);
+    console.log(`GrantKosh Advisor on http://localhost:${PORT}  (AI: ${MOCK ? "MOCK" : keys ? `${MODELS.join(" → ")}; free plan ${FREE_MODELS.join(" → ")}; ${keys.size} key(s)` : "off, guided mode only"}; data: ${getDataset().opportunities.length} programmes)`);
   });
   // Platforms send SIGTERM on redeploy: stop accepting, let in-flight answers finish (max 10s).
   const shutdown = (signal: string) => {

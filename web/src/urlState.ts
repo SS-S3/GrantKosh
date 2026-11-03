@@ -49,7 +49,10 @@ export function useUrlState<T extends Shape>(defaults: T, keep: string[] = []) {
 }
 
 export function useTab(): [string, (t: string) => void] {
-  const [tab, setTab] = useState(() => new URLSearchParams(location.search).get("tab") ?? "funding");
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    return t === "advisor" || t === "investors" ? t : "funding";
+  });
   const change = useCallback((t: string) => {
     // Switching tabs starts from a clean query string for the new view.
     history.replaceState(null, "", t === "funding" ? location.pathname : `?tab=${t}`);

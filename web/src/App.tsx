@@ -4,14 +4,12 @@ import { loadDataset, type Dataset } from "./data";
 import { AdvisorView } from "./AdvisorView";
 import { FundingView } from "./FundingView";
 import { InvestorsView } from "./InvestorsView";
-import { SourcesView } from "./SourcesView";
 import { useTab } from "./urlState";
 
 const TABS = [
   { id: "funding", label: "Grants", extra: " & schemes" },
   { id: "advisor", label: "Advisor", extra: "" },
   { id: "investors", label: "Investors", extra: "" },
-  { id: "sources", label: "Sources", extra: "" },
 ];
 
 function useTheme(): [string, () => void] {
@@ -78,14 +76,14 @@ export default function App() {
       <main className="wrap">
         {tab === "funding" && (
           <section className="hero">
-            <p className="eyebrow">Free · Open data · No sign-up</p>
+            <p className="eyebrow">Free · Updated daily · No sign-up</p>
             <h1>Every grant, scheme and challenge for founders, in one search.</h1>
             {data && (
               <div className="stats">
                 <div className="stat"><b>{data.opportunities.length.toLocaleString("en-IN")}</b><span>programs tracked</span></div>
                 <div className="stat"><b>{openNow.toLocaleString("en-IN")}</b><span>open or rolling now</span></div>
                 <div className="stat"><b>{data.investors.length.toLocaleString("en-IN")}</b><span>registered investors</span></div>
-                <div className="stat"><b>{data.meta.sources.length}</b><span>sources, refreshed {new Date(data.meta.generatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span></div>
+                <div className="stat"><b>{new Date(data.meta.generatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</b><span>last updated</span></div>
               </div>
             )}
           </section>
@@ -100,14 +98,10 @@ export default function App() {
         {data && tab === "funding" && <FundingView data={data} />}
         {data && tab === "advisor" && <AdvisorView data={data} />}
         {data && tab === "investors" && <InvestorsView data={data} />}
-        {data && tab === "sources" && <SourcesView data={data} />}
       </main>
 
       <footer className="wrap footer">
-        <span>Data: CC BY 4.0 · Code: MIT · Not affiliated with any government body.</span>
-        <span>
-          <a href={`${import.meta.env.BASE_URL}data/opportunities.json`}>opportunities.json</a> · <a href={`${import.meta.env.BASE_URL}data/investors.json`}>investors.json</a>
-        </span>
+        <span>© GrantKosh · Not affiliated with any government body. Always confirm details on the official page.</span>
       </footer>
     </>
   );

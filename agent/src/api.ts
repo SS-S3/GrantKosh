@@ -1,34 +1,49 @@
 // GrantKosh Advisor API, shared by the long-running server (server.ts) and the Vercel functions (vercel.ts).
 //   GET  /api/health             → { ai, models, dataGeneratedAt, auth, billing }
-//   GET  /api/me                 → the caller's plan and today's usage
+//   GET  /api/me                 → the caller's plan and usage
 //   POST /api/chat               → text/event-stream of AgentEvent JSON lines (signed-in users when auth is on)
 //   POST /api/billing/subscribe  → { sessionId, mode } to open Cashfree subscription checkout
 //   POST /api/billing/webhook    → Cashfree subscription events
-// Configure with agent/.env (see .env.example). Without GEMINI_API_KEY the UI uses guided mode.
+// Configure with agent/.env (see .env.example). Without a Gemini key the UI uses guided mode.
+// Abuse protection: per-IP limits on every route, JSON-only POSTs from this site's origin, size caps
+// on bodies and chat history, one answer at a time per account, and the limits in limits.ts.
 import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { type AgentEvent, errorEvent, runAdvisor } from "./agent";
+import { type AgentEvent, type ChatTurn, errorEvent, runAdvisor } from "./agent";
 import { type AccountInfo, authEnabled, getAccount, saveBilling, userIdFrom } from "./auth";
 import { billingEnabled, billingUpdate, CASHFREE_MODE, createSubscription, firstChargeAt, verifyWebhook, type WebhookEvent } from "./billing";
+import { cacheKey, getCached, putCached } from "./cache";
 import { getDataset } from "./data";
-import { burstOk, takeChat, usedToday } from "./limits";
-import { DAILY_LIMITS, entitlement, PRICE_INR, TRIAL_DAYS, TRIAL_SIGNUP_DEADLINE } from "./plans";
+import { apiKeys, KeyPool } from "./gemini";
+import { apiRateOk, burstOk, lockUser, recordTokens, takeChat, usage, type Verdict, withStore } from "./limits";
+import { DAILY_LIMITS, type Entitlement, entitlement, PAID_MONTHLY, PRICE_INR, TRIAL_DAYS, TRIAL_SIGNUP_DEADLINE } from "./plans";
 import { mockAi } from "./mock";
 import HEADERS from "./security-headers.json";
 
 const ENV_FILE = fileURLToPath(new URL("../.env", import.meta.url));
 if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
-const API_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? "";
-export const MODELS = (process.env.GEMINI_MODELS ?? "gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash").split(",").map(s => s.trim()).filter(Boolean);
+const modelList = (value: string) => value.split(",").map(s => s.trim()).filter(Boolean);
+/** Trial and paid plans: Flash first; Flash-Lite only as a last resort when Flash is unavailable. */
+export const MODELS = modelList(process.env.GEMINI_MODELS ?? "gemini-3.8-flash,gemini-2.5-flash,gemini-3.5-flash-lite");
+/** Free plan: the cheaper Flash-Lite models. */
+export const FREE_MODELS = modelList(process.env.GEMINI_MODELS_FREE ?? "gemini-3.5-flash-lite,gemini-2.5-flash-lite");
 /** Vercel always sits behind its own proxy, which sets X-Forwarded-For and X-Forwarded-Proto. */
 const TRUST_PROXY = !!(process.env.TRUST_PROXY || process.env.VERCEL);
 
 export const MOCK = process.env.ADVISOR_MOCK === "1";
-export const ai = MOCK ? mockAi() : API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+const KEYS = apiKeys();
+export const keys = MOCK ? new KeyPool([{ id: 1, ai: mockAi() }]) : KEYS.length ? new KeyPool(KEYS.map((apiKey, i) => ({ id: i + 1, ai: new GoogleGenAI({ apiKey }) }))) : null;
+/** Browser origins allowed to call the API besides this site's own, e.g. https://www.grantkosh.in. */
+const ALLOWED_ORIGINS = new Set(modelList(process.env.ALLOWED_ORIGINS ?? ""));
+
+/** Only the latest turns go to the model: older ones add cost without changing the answer much. */
+const MAX_HISTORY = 8;
+const MAX_ASSISTANT_CHARS = 2500;
 
 const ChatBody = z.object({
   messages: z
@@ -43,12 +58,31 @@ const clientIp = (req: IncomingMessage) =>
   (TRUST_PROXY ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0]!.trim() : "") || req.socket.remoteAddress || "unknown";
 
 // ---------- helpers ----------
-export function json(res: ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+export function json(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
   res.end(JSON.stringify(body));
 }
 
-async function readRaw(req: IncomingMessage, max = 64 * 1024): Promise<Buffer> {
+const isJson = (req: IncomingMessage) => /^application\/json\b/i.test(String(req.headers["content-type"] ?? ""));
+
+/**
+ * Browsers send Origin on POSTs. A request from another site's page is refused, so other sites can't
+ * use a visitor's session. Clients that send no Origin still need a valid session.
+ */
+function originOk(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).host;
+    const forwarded = TRUST_PROXY ? String(req.headers["x-forwarded-host"] ?? "").split(",")[0]!.trim() : "";
+    return host === req.headers.host || host === forwarded || (!!process.env.PUBLIC_URL && host === new URL(process.env.PUBLIC_URL).host);
+  } catch {
+    return false;
+  }
+}
+
+async function readRaw(req: IncomingMessage, max = 48 * 1024): Promise<Buffer> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -58,7 +92,7 @@ async function readRaw(req: IncomingMessage, max = 64 * 1024): Promise<Buffer> {
   }
   return Buffer.concat(chunks);
 }
-const readBody = async (req: IncomingMessage) => (await readRaw(req)).toString("utf8");
+const readBody = async (req: IncomingMessage, max?: number) => (await readRaw(req, max)).toString("utf8");
 
 // Baseline security headers for every response. The CSP allows this origin, Google Fonts, Clerk sign-in
 // and Cashfree checkout. The JSON file is shared with scripts/vercel-output.mjs, which builds the same
@@ -99,67 +133,120 @@ async function caller(req: IncomingMessage): Promise<Caller | null> {
 const SIGN_IN = { code: "auth", error: "Sign in to use the advisor." };
 
 async function me(req: IncomingMessage, res: ServerResponse) {
-  const offer = { trialDays: TRIAL_DAYS, trialSignupDeadline: new Date(TRIAL_SIGNUP_DEADLINE).toISOString(), priceInr: PRICE_INR };
+  const offer = { trialDays: TRIAL_DAYS, trialSignupDeadline: new Date(TRIAL_SIGNUP_DEADLINE).toISOString(), priceInr: PRICE_INR, freeDaily: DAILY_LIMITS.free, paidDaily: DAILY_LIMITS.paid, paidMonthly: PAID_MONTHLY };
   const c = await caller(req);
   if (!c) return json(res, 200, { signedIn: false, ...offer });
   const e = entitlement(c.account);
+  const used = await usage(c.who, e);
   json(res, 200, {
     signedIn: !!c.account,
     ...offer,
     plan: e.plan,
     dailyLimit: e.dailyLimit,
-    usedToday: await usedToday(c.who),
+    usedToday: used.today,
+    period: e.period && { kind: e.period.kind, limit: e.period.limit, used: used.period },
     trialEndsAt: e.trialEndsAt && new Date(e.trialEndsAt).toISOString(),
     paidUntil: e.paidUntil && new Date(e.paidUntil).toISOString(),
     canSubscribe: billingEnabled && !!c.account,
   });
 }
 
-const LIMIT_MESSAGES = {
-  burst: "You've asked a lot of questions in a short time. Please wait a few minutes, or use guided matching.",
-  pool: "Free advisor chats are used up for today. Guided matching still works, or subscribe for more chats.",
-  global: "The advisor has reached today's capacity. Guided matching still works.",
-} as const;
+const BURST = { code: "quota", error: "You've asked a lot of questions in a short time. Please wait a few minutes, or use guided matching." };
+const TOO_MANY = { code: "quota", error: "Too many requests. Please slow down." };
+
+/** Why a chat was refused, as [HTTP status, body]. */
+function refusal(verdict: Exclude<Verdict, "ok">, e: Entitlement): [number, { code: string; error: string }] {
+  const subscribe = `Subscribe for ₹${PRICE_INR}/month for up to ${DAILY_LIMITS.paid} chats a day`;
+  switch (verdict) {
+    case "user":
+      return e.plan === "free"
+        ? [429, { code: "upgrade", error: `You've used your ${e.dailyLimit} free chats for today. ${subscribe}, or come back tomorrow.` }]
+        : [429, { code: "quota", error: `You've used today's ${e.dailyLimit} chats. They reset at midnight IST.` }];
+    case "period":
+      return e.period?.kind === "trial"
+        ? [429, { code: "upgrade", error: `You've used all ${e.period.limit} chats in your free trial. ${subscribe}.` }]
+        : [429, { code: "quota", error: `You've used this month's ${e.period?.limit} chats. They reset on the 1st.` }];
+    case "pool":
+      return [429, { code: "upgrade", error: `Free advisor chats are used up for today. Guided matching still works, or ${subscribe.charAt(0).toLowerCase()}${subscribe.slice(1)}.` }];
+    case "global":
+      return [429, { code: "quota", error: "The advisor has reached today's capacity. Guided matching still works." }];
+    case "busy":
+      return [503, { code: "busy", error: "The advisor is very busy right now. Please try again in a minute." }];
+  }
+}
+
+function trimHistory(messages: ChatTurn[]): ChatTurn[] {
+  let turns = messages.slice(-MAX_HISTORY);
+  while (turns[0]?.role === "assistant") turns = turns.slice(1);
+  return turns.map(t => (t.role === "assistant" && t.content.length > MAX_ASSISTANT_CHARS ? { ...t, content: `${t.content.slice(0, MAX_ASSISTANT_CHARS)}…` } : t));
+}
 
 // ---------- chat ----------
 async function chat(req: IncomingMessage, res: ServerResponse) {
-  if (!ai) return json(res, 503, { error: "AI advisor not configured (GEMINI_API_KEY missing)", code: "unavailable" });
-  if (!(await burstOk(clientIp(req)))) return json(res, 429, { code: "quota", error: LIMIT_MESSAGES.burst });
+  if (!keys) return json(res, 503, { error: "AI advisor not configured (GEMINI_API_KEYS missing)", code: "unavailable" });
+  if (!(await burstOk(clientIp(req)))) return json(res, 429, BURST, { "Retry-After": "600" });
   const c = await caller(req);
   if (!c) return json(res, 401, SIGN_IN);
 
   let body: z.infer<typeof ChatBody>;
   try {
-    body = ChatBody.parse(JSON.parse(await readBody(req)));
+    body = ChatBody.parse(JSON.parse(await readBody(req, 128 * 1024)));
   } catch (err) {
     return json(res, 400, { error: err instanceof z.ZodError ? err.issues[0]?.message : "invalid JSON body" });
   }
 
   const e = entitlement(c.account);
-  const verdict = await takeChat(c.who, e.plan, e.dailyLimit);
-  if (verdict === "user") {
-    const error = e.plan === "free" ? `You've used your ${e.dailyLimit} free chats for today. Subscribe for ₹${PRICE_INR}/month to get ${DAILY_LIMITS.paid} a day, or come back tomorrow.` : `You've used today's ${e.dailyLimit} chats. They reset at midnight IST.`;
-    return json(res, 429, { code: e.plan === "free" ? "upgrade" : "quota", error });
-  }
-  if (verdict !== "ok") return json(res, 429, { code: verdict === "pool" ? "upgrade" : "quota", error: LIMIT_MESSAGES[verdict] });
+  const tier = e.plan === "free" ? "free" : "flash";
+  const dataset = getDataset();
+  const key = cacheKey(body.messages, tier, dataset.generatedAt);
+  const cached = key ? await getCached(key) : null;
 
-  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
-  const send = (e: AgentEvent) => {
-    if (!res.writableEnded) res.write(`data: ${JSON.stringify(e)}\n\n`);
+  const release = await lockUser(c.who);
+  if (!release) return json(res, 429, { code: "busy", error: "Your previous question is still being answered. Please wait for it to finish." });
+
+  const send = (ev: AgentEvent) => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(ev)}\n\n`);
+  };
+  const open = () => {
+    if (!res.headersSent) res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
   };
   const abort = new AbortController();
   res.on("close", () => abort.abort());
 
   try {
-    await runAdvisor(body.messages, send, { ai, models: MODELS, dataset: getDataset(), signal: abort.signal });
+    const verdict = await takeChat(c.who, e, {
+      model: !cached,
+      // Open the stream while the chat waits, so the person sees why it's slow.
+      onWait: () => {
+        open();
+        send({ type: "status", text: "Lots of people are asking right now. You're next in line…" });
+      },
+    });
+    if (verdict !== "ok") {
+      const [status, refused] = refusal(verdict, e);
+      if (!res.headersSent) return json(res, status, refused, verdict === "busy" ? { "Retry-After": "60" } : {});
+      return send({ type: "error", code: refused.code as "quota", message: refused.error });
+    }
+    open();
+    if (cached) {
+      for (const ev of cached) send(ev);
+      return;
+    }
+    const events: AgentEvent[] = [];
+    const result = await runAdvisor(trimHistory(body.messages), ev => (events.push(ev), send(ev)), { keys, models: tier === "free" ? FREE_MODELS : MODELS, dataset, signal: abort.signal });
+    console.log(`[usage] plan=${e.plan} model=${result.model} in=${result.inputTokens} out=${result.outputTokens}`);
+    void recordTokens(result.model, result.inputTokens, result.outputTokens);
+    if (key) await putCached(key, events);
   } catch (err) {
     if (!abort.signal.aborted) {
       const event = errorEvent(err);
-      console.error("[advisor]", event.type === "error" && event.code === "unavailable" ? "Gemini unavailable or GEMINI_API_KEY rejected:" : "", (err as Error).message.slice(0, 300));
+      console.error("[advisor]", event.type === "error" && event.code === "unavailable" ? "Gemini unavailable or every key rejected:" : "", (err as Error).message.slice(0, 300));
+      open();
       send(event);
     }
   } finally {
-    res.end();
+    await release();
+    if (!res.writableEnded) res.end();
   }
 }
 
@@ -207,6 +294,9 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   const raw = await readRaw(req, 256 * 1024);
   const header = (name: string) => (req.headers[name] as string | undefined) ?? undefined;
   if (!verifyWebhook(raw, header("x-webhook-timestamp"), header("x-webhook-signature"))) return json(res, 401, { error: "bad signature" });
+  // Each signed delivery is applied once, so a captured webhook can't be replayed to extend access.
+  const seenKey = `gk:wh:${createHash("sha256").update(raw).digest("base64url")}`;
+  if (!(await withStore(s => s.lock(seenKey, 60 * 24 * 3600)))) return json(res, 200, { ok: true, duplicate: true });
   let event: WebhookEvent;
   try {
     event = JSON.parse(raw.toString("utf8")) as WebhookEvent;
@@ -215,9 +305,15 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   }
   const userId = billingUpdate(event)?.userId;
   if (userId) {
-    const { userId: _, ...update } = billingUpdate(event, (await getAccount(userId)).paidUntil ?? 0)!;
-    await saveBilling(userId, update);
-    console.log(`[billing] ${event.type} ${update.subscriptionId}${update.paidUntil ? ` paid until ${new Date(update.paidUntil).toISOString()}` : ""}`);
+    try {
+      const { userId: _, ...update } = billingUpdate(event, (await getAccount(userId)).paidUntil ?? 0)!;
+      await saveBilling(userId, update);
+      console.log(`[billing] ${event.type} ${update.subscriptionId}${update.paidUntil ? ` paid until ${new Date(update.paidUntil).toISOString()}` : ""}`);
+    } catch (err) {
+      // Not applied: forget the delivery so Cashfree's retry is processed.
+      await withStore(s => s.del(seenKey)).catch(() => {});
+      throw err;
+    }
   }
   json(res, 200, { ok: true });
 }
@@ -227,15 +323,18 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   try {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     if (path === "/api/health" && (req.method === "GET" || req.method === "HEAD")) {
-      return json(res, 200, { ok: true, ai: !!ai, models: ai ? MODELS : [], dataGeneratedAt: getDataset().generatedAt, auth: authEnabled, billing: billingEnabled });
+      return json(res, 200, { ok: true, ai: !!keys, models: keys ? MODELS : [], dataGeneratedAt: getDataset().generatedAt, auth: authEnabled, billing: billingEnabled });
     }
-    if (path === "/api/me" && req.method === "GET") return await me(req, res);
-    if (path === "/api/billing/subscribe" && req.method === "POST") return await subscribe(req, res);
+    // Cashfree's webhook is signed; every other route counts against the caller's IP.
     if (path === "/api/billing/webhook" && req.method === "POST") return await webhook(req, res);
-    if (path === "/api/chat") {
-      if (req.method !== "POST") return json(res, 405, { error: "POST only" });
-      return await chat(req, res);
-    }
+    if (!(await apiRateOk(clientIp(req)))) return json(res, 429, TOO_MANY, { "Retry-After": "60" });
+    if (path === "/api/me" && req.method === "GET") return await me(req, res);
+    const post = path === "/api/chat" || path === "/api/billing/subscribe";
+    if (post && req.method !== "POST") return json(res, 405, { error: "POST only" });
+    if (post && !originOk(req)) return json(res, 403, { error: "cross-site request refused" });
+    if (post && !isJson(req)) return json(res, 415, { error: "send application/json" });
+    if (path === "/api/billing/subscribe") return await subscribe(req, res);
+    if (path === "/api/chat") return await chat(req, res);
     json(res, 404, { error: "not found" });
   } catch (err) {
     console.error(err);

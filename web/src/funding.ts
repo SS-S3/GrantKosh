@@ -20,13 +20,12 @@ export const FUNDING_DEFAULTS = {
   reg: [] as string[],
   entity: [] as string[],
   country: [] as string[],
-  source: [] as string[],
   within: "",
   min: "",
   nationwide: "1",
 };
 export type FundingState = typeof FUNDING_DEFAULTS;
-export type FacetKey = "status" | "type" | "funding" | "stage" | "sector" | "state" | "founder" | "reg" | "entity" | "country" | "source";
+export type FacetKey = "status" | "type" | "funding" | "stage" | "sector" | "state" | "founder" | "reg" | "entity" | "country";
 
 export interface Facet {
   key: FacetKey;
@@ -50,7 +49,6 @@ export const FACETS: Facet[] = [
   { key: "reg", title: "Registrations required", values: o => o.registrations, labels: REGISTRATION },
   { key: "entity", title: "Entity type", values: o => o.entityTypes, labels: ENTITY },
   { key: "country", title: "Region", values: o => [o.country], labels: COUNTRY, order: ["IN", "INT", "EU", "GB", "US"] },
-  { key: "source", title: "Source", values: o => [o.source, ...o.alsoListedOn], labels: {} },
 ];
 
 const GOVT_SOURCES = new Set(["myscheme", "birac", "idex", "grants-gov", "eu-funding", "ukri"]);

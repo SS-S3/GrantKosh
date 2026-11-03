@@ -4,10 +4,11 @@
 // back → repeat (max MAX_STEPS) → final answer. The model's parts are appended back verbatim so
 // Gemini's thought signatures survive between steps, which function calling requires.
 import {
-  ApiError, type Content, type FunctionCall, FunctionCallingConfigMode, type GenerateContentConfig, type GenerateContentResponse, type GoogleGenAI, type Part, ThinkingLevel,
+  ApiError, type Content, type FunctionCall, FunctionCallingConfigMode, type GenerateContentConfig, type GenerateContentResponse, type Part, ThinkingLevel,
 } from "@google/genai";
 import type { Match } from "../../web/src/match";
 import type { Dataset } from "./data";
+import type { KeyPool } from "./gemini";
 import { SYSTEM_PROMPT } from "./prompt";
 import { runTool, TOOLS } from "./tools";
 
@@ -32,11 +33,18 @@ export type AgentEvent =
   | { type: "error"; message: string; code: "quota" | "blocked" | "unavailable" | "internal" };
 
 export interface AgentOptions {
-  ai: GoogleGenAI;
+  keys: KeyPool;
   /** Tried in order; later ones are used when an earlier one is rate-limited or unavailable. */
   models: string[];
   dataset: Dataset;
   signal?: AbortSignal;
+}
+
+export interface AdvisorResult {
+  model: string;
+  /** Tokens billed for the whole answer, across every step. Output includes thinking. */
+  inputTokens: number;
+  outputTokens: number;
 }
 
 const MAX_STEPS = 5;
@@ -60,35 +68,59 @@ function isFallbackError(err: unknown): boolean {
   return err instanceof ApiError && [404, 429, 500, 503].includes(err.status);
 }
 
-export async function runAdvisor(history: ChatTurn[], emit: (e: AgentEvent) => void, opts: AgentOptions): Promise<void> {
+const isKeyRejected = (err: ApiError) => err.status === 401 || err.status === 403 || (err.status === 400 && /API_KEY_INVALID|API key not valid/.test(err.message));
+
+/** How long a key rests after this error before new requests try it first again; 0 = not the key's fault. */
+function restMs(err: unknown): number {
+  if (!(err instanceof ApiError)) return 0;
+  if (err.status === 429) return 60_000;
+  if (err.status >= 500) return 15_000;
+  if (isKeyRejected(err)) return 10 * 60_000;
+  return 0;
+}
+
+export async function runAdvisor(history: ChatTurn[], emit: (e: AgentEvent) => void, opts: AgentOptions): Promise<AdvisorResult> {
   const contents: Content[] = history.map(t => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.content }] }));
   const seen = new Map<string, Match>();
   let modelIndex = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const finalStep = step === MAX_STEPS - 1;
-    let stream: AsyncGenerator<GenerateContentResponse>;
-    // Pick a model. Fallback is allowed only on the first step: thought signatures from one
-    // model must not be replayed to another.
+    let stream: AsyncGenerator<GenerateContentResponse> | undefined;
+    // Pick a key, then a model. Any key may serve any step. Model fallback is allowed only on the
+    // first step: thought signatures from one model must not be replayed to another.
     for (;;) {
       const model = opts.models[modelIndex]!;
-      try {
-        stream = await opts.ai.models.generateContentStream({ model, contents, config: { ...configFor(model, finalStep), abortSignal: opts.signal } });
-        break;
-      } catch (err) {
-        if (step === 0 && isFallbackError(err) && modelIndex < opts.models.length - 1) {
-          modelIndex++;
-          emit({ type: "status", text: "Primary model busy, switching…" });
-          continue;
+      let lastErr: unknown;
+      for (const client of opts.keys.order()) {
+        try {
+          stream = await client.ai.models.generateContentStream({ model, contents, config: { ...configFor(model, finalStep), abortSignal: opts.signal } });
+          break;
+        } catch (err) {
+          lastErr = err;
+          const rest = restMs(err);
+          if (!rest) break;
+          opts.keys.rest(client.id, rest);
+          if (isKeyRejected(err as ApiError)) console.error(`[advisor] Gemini key #${client.id} rejected`);
         }
-        throw err;
       }
+      if (stream) break;
+      if (step === 0 && isFallbackError(lastErr) && modelIndex < opts.models.length - 1) {
+        modelIndex++;
+        emit({ type: "status", text: "Primary model busy, switching…" });
+        continue;
+      }
+      throw lastErr;
     }
 
     const modelParts: Part[] = [];
     const calls: FunctionCall[] = [];
     let finishReason: string | undefined;
+    let usage: GenerateContentResponse["usageMetadata"];
     for await (const chunk of stream) {
+      if (chunk.usageMetadata) usage = chunk.usageMetadata;
       const cand = chunk.candidates?.[0];
       if (cand?.finishReason) finishReason = cand.finishReason;
       for (const part of cand?.content?.parts ?? []) {
@@ -99,10 +131,12 @@ export async function runAdvisor(history: ChatTurn[], emit: (e: AgentEvent) => v
       }
       if (chunk.promptFeedback?.blockReason) finishReason = chunk.promptFeedback.blockReason;
     }
+    inputTokens += usage?.promptTokenCount ?? 0;
+    outputTokens += (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0);
 
     if (finishReason && BLOCKED.has(finishReason)) {
       emit({ type: "error", code: "blocked", message: "That request was blocked by the model's safety filters. Try rephrasing it as a question about funding for your startup." });
-      return;
+      return { model: opts.models[modelIndex]!, inputTokens, outputTokens };
     }
     contents.push({ role: "model", parts: modelParts });
     if (!calls.length) break;
@@ -123,13 +157,14 @@ export async function runAdvisor(history: ChatTurn[], emit: (e: AgentEvent) => v
     }
   }
   emit({ type: "done", model: opts.models[modelIndex]! });
+  return { model: opts.models[modelIndex]!, inputTokens, outputTokens };
 }
 
 /** Map any failure to a user-facing event. Quota errors tell the UI to offer guided mode. */
 export function errorEvent(err: unknown): AgentEvent {
   if (err instanceof ApiError) {
     // A rejected key is an operator problem; tell the UI to fall back rather than retry.
-    if (err.status === 401 || err.status === 403 || (err.status === 400 && /API_KEY_INVALID|API key not valid/.test(err.message))) {
+    if (isKeyRejected(err)) {
       return { type: "error", code: "unavailable", message: "The AI advisor isn't available right now. Guided matching still works." };
     }
     if (err.status === 429) return { type: "error", code: "quota", message: "The free AI quota is used up for now. Use guided matching below, or try again in a minute." };

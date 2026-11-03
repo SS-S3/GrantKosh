@@ -4,6 +4,7 @@ import { rankPrograms, scoreProgram } from "../../web/src/match";
 import type { Opportunity } from "../../web/src/types";
 import { type AgentEvent, errorEvent, runAdvisor } from "../src/agent";
 import { buildDataset } from "../src/data";
+import { KeyPool } from "../src/gemini";
 import { findPrograms, runTool } from "../src/tools";
 
 const TODAY = "2026-10-08";
@@ -92,7 +93,7 @@ describe("tools", () => {
 
 // ---------- agent loop against a scripted fake Gemini ----------
 
-type Chunk = { candidates: Array<{ content: { parts: Array<Record<string, unknown>> }; finishReason?: string }> };
+type Chunk = { candidates: Array<{ content: { parts: Array<Record<string, unknown>> }; finishReason?: string }>; usageMetadata?: Record<string, number> };
 
 function fakeAi(script: Array<Chunk[] | Error>, calls: unknown[] = []): GoogleGenAI {
   let i = 0;
@@ -110,6 +111,8 @@ function fakeAi(script: Array<Chunk[] | Error>, calls: unknown[] = []): GoogleGe
   } as unknown as GoogleGenAI;
 }
 
+const pool = (...ais: GoogleGenAI[]) => new KeyPool(ais.map((ai, i) => ({ id: i + 1, ai })));
+
 describe("runAdvisor", () => {
   const ds = buildDataset(DATA, [], "2026-10-08T00:00:00Z", TODAY);
 
@@ -126,7 +129,7 @@ describe("runAdvisor", () => {
       calls as unknown[],
     );
     const events: AgentEvent[] = [];
-    await runAdvisor([{ role: "user", content: "Defence drone startup, prototype stage" }], e => events.push(e), { ai, models: ["m1"], dataset: ds });
+    await runAdvisor([{ role: "user", content: "Defence drone startup, prototype stage" }], e => events.push(e), { keys: pool(ai), models: ["m1"], dataset: ds });
 
     const text = events.filter(e => e.type === "text").map(e => (e as { delta: string }).delta).join("");
     expect(text).toBe("Best fit: **iDEX DISC** [[curated:idex-disc]]");
@@ -147,16 +150,28 @@ describe("runAdvisor", () => {
     const calls: Array<{ model: string }> = [];
     const ai = fakeAi([new ApiError({ message: "quota", status: 429 }), [{ candidates: [{ content: { parts: [{ text: "Hi" }] }, finishReason: "STOP" }] }]], calls as unknown[]);
     const events: AgentEvent[] = [];
-    await runAdvisor([{ role: "user", content: "hello" }], e => events.push(e), { ai, models: ["m1", "m2"], dataset: ds });
+    await runAdvisor([{ role: "user", content: "hello" }], e => events.push(e), { keys: pool(ai), models: ["m1", "m2"], dataset: ds });
     expect(calls.map(c => c.model)).toEqual(["m1", "m2"]);
     expect(events.at(-1)).toEqual({ type: "done", model: "m2" });
+  });
+
+  it("moves to the next key before the next model, and rests the rate-limited key", async () => {
+    const calls1: Array<{ model: string }> = [];
+    const calls2: Array<{ model: string }> = [];
+    const keys = pool(fakeAi([new ApiError({ message: "quota", status: 429 })], calls1 as unknown[]), fakeAi([[{ candidates: [{ content: { parts: [{ text: "Hi" }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 40, thoughtsTokenCount: 60 } }]], calls2 as unknown[]));
+    const result = await runAdvisor([{ role: "user", content: "hello" }], () => {}, { keys, models: ["m1", "m2"], dataset: ds });
+    expect(calls1.map(c => c.model)).toEqual(["m1"]);
+    expect(calls2.map(c => c.model)).toEqual(["m1"]);
+    expect(result).toEqual({ model: "m1", inputTokens: 900, outputTokens: 100 });
+    // The next request starts on key 2 because key 1 is resting.
+    expect(keys.order().map(c => c.id)).toEqual([2, 1]);
   });
 
   it("forbids tool calls on the final step so the loop always ends with an answer", async () => {
     const callTurn: Chunk[] = [{ candidates: [{ content: { parts: [{ functionCall: { name: "find_programs", args: {} } }] } }] }];
     const calls: Array<{ config: { toolConfig: { functionCallingConfig: { mode: string } } } }> = [];
     const ai = fakeAi([callTurn, callTurn, callTurn, callTurn, [{ candidates: [{ content: { parts: [{ text: "done" }] } }] }]], calls as unknown[]);
-    await runAdvisor([{ role: "user", content: "x" }], () => {}, { ai, models: ["m1"], dataset: ds });
+    await runAdvisor([{ role: "user", content: "x" }], () => {}, { keys: pool(ai), models: ["m1"], dataset: ds });
     expect(calls).toHaveLength(5);
     expect(calls[4]!.config.toolConfig.functionCallingConfig.mode).toBe("NONE");
     expect(calls[0]!.config.toolConfig.functionCallingConfig.mode).toBe("AUTO");
@@ -165,7 +180,7 @@ describe("runAdvisor", () => {
   it("reports safety blocks and quota errors in plain language", async () => {
     const ai = fakeAi([[{ candidates: [{ content: { parts: [] }, finishReason: "SAFETY" }] }]]);
     const events: AgentEvent[] = [];
-    await runAdvisor([{ role: "user", content: "x" }], e => events.push(e), { ai, models: ["m1"], dataset: ds });
+    await runAdvisor([{ role: "user", content: "x" }], e => events.push(e), { keys: pool(ai), models: ["m1"], dataset: ds });
     expect(events.at(-1)).toMatchObject({ type: "error", code: "blocked" });
     expect(errorEvent(new ApiError({ message: "q", status: 429 }))).toMatchObject({ code: "quota" });
   });

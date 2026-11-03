@@ -109,7 +109,7 @@ when its sitemap `lastmod` changes, and an official page only when its cached fa
   a live count.
 - Quick chips: closing this month, open now, government, women founders, DPIIT, students, equity-free,
   pan-India, ₹25L+, India-only, international.
-- Every view is stored in the URL, so you can share it. CSV export of any filtered list. Dark mode. Works on phones.
+- Every view is stored in the URL, so you can share it. Dark mode. Works on phones.
 - An Investors tab for SEBI-registered funds, with filters by type, category, state and city.
 
 ## Deploy

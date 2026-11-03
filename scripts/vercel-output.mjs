@@ -68,7 +68,7 @@ writeFileSync(
     version: 3,
     routes: [
       { src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true },
-      { src: "/data/(.*)", headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" }, continue: true },
+      { src: "/data/(.*)", headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400", "X-Robots-Tag": "noindex, nofollow" }, continue: true },
       { src: "/(.*)", headers: { ...SECURITY_HEADERS, ...hsts }, continue: true },
       { handle: "filesystem" },
       // Unknown asset, data and API paths are real 404s; anything else is a client-side route.

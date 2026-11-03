@@ -14,6 +14,9 @@ COPY web/package.json web/
 COPY agent/package.json agent/
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Clerk's publishable key is baked into the UI at build time (it is public, not a secret).
+ARG VITE_CLERK_PUBLISHABLE_KEY=""
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 RUN npm run build:prod
 
 # Runtime: the server is a self-contained bundle, so no node_modules are shipped.

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { FilterGroup, Modal, SearchBox, useShowMore } from "./components";
-import { downloadCsv } from "./csv";
 import type { Dataset } from "./data";
 import { amountLabel, deadlineLabel, fmtDate } from "./format";
 import {
@@ -17,7 +16,6 @@ export function FundingView({ data }: { data: Dataset }) {
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(location.search).get("open"));
   const [drawer, setDrawer] = useState(false);
 
-  const sourceNames = useMemo(() => Object.fromEntries(data.meta.sources.map(x => [x.id, x.name])), [data.meta]);
   const hits = useMemo(() => {
     const q = s.q.trim();
     if (!q) return null;
@@ -46,12 +44,6 @@ export function FundingView({ data }: { data: Dataset }) {
     history.replaceState(null, "", p.toString() ? `?${p}` : location.pathname);
   };
 
-  const exportCsv = () =>
-    downloadCsv(`grantkosh-funding-${data.today}.csv`, rows, [
-      "title", "provider", "programType", "fundingType", "status", "deadline", "opensAt", "amountMin", "amountMax", "currency",
-      "country", "states", "sectors", "stages", "founderTypes", "registrations", "url", "source",
-    ]);
-
   return (
     <div className="layout">
       <aside className={`sidebar${drawer ? " is-open" : ""}`} aria-label="Filters">
@@ -79,7 +71,7 @@ export function FundingView({ data }: { data: Dataset }) {
           </div>
         </div>
 
-        {FACETS.filter(f => f.key !== "source" && f.key !== "country").map(f => (
+        {FACETS.filter(f => f.key !== "country").map(f => (
           <FilterGroup
             key={f.key}
             title={f.title}
@@ -114,7 +106,6 @@ export function FundingView({ data }: { data: Dataset }) {
         </div>
 
         <FilterGroup title="Region" options={options("country")} selected={s.country} labels={COUNTRY} onToggle={v => toggle("country", v)} onClear={() => set("country", [])} />
-        <FilterGroup title="Source" options={options("source")} selected={s.source} labels={sourceNames} onToggle={v => toggle("source", v)} onClear={() => set("source", [])} />
       </aside>
       {drawer && <div className="scrim" onClick={() => setDrawer(false)} />}
 
@@ -149,9 +140,6 @@ export function FundingView({ data }: { data: Dataset }) {
                 ))}
               </select>
             </label>
-            <button className="btn btn-ghost" onClick={exportCsv} disabled={!rows.length}>
-              Export CSV
-            </button>
           </div>
         </div>
 
@@ -165,7 +153,7 @@ export function FundingView({ data }: { data: Dataset }) {
         ) : (
           <ol className="cards">
             {page.visible.map(o => (
-              <OppCard key={o.id} o={o} today={data.today} sourceName={sourceNames[o.source] ?? o.source} onOpen={() => open(o.id)} />
+              <OppCard key={o.id} o={o} today={data.today} onOpen={() => open(o.id)} />
             ))}
           </ol>
         )}
@@ -177,13 +165,13 @@ export function FundingView({ data }: { data: Dataset }) {
       </section>
 
       <Modal open={!!selected} onClose={() => open(null)} labelledBy="opp-title">
-        {selected && <OppDetail o={selected} today={data.today} sourceNames={sourceNames} />}
+        {selected && <OppDetail o={selected} today={data.today} />}
       </Modal>
     </div>
   );
 }
 
-export function OppCard({ o, today, sourceName, onOpen }: { o: Opportunity; today: string; sourceName: string; onOpen: () => void }) {
+export function OppCard({ o, today, onOpen }: { o: Opportunity; today: string; onOpen: () => void }) {
   const dl = deadlineLabel(o, today);
   const amount = amountLabel(o);
   return (
@@ -209,7 +197,6 @@ export function OppCard({ o, today, sourceName, onOpen }: { o: Opportunity; toda
       <div className="card-side">
         <span className={`deadline tone-${dl.tone}`}>{dl.text}</span>
         {amount ? <b className="amount">{amount}</b> : <span className="amount amount-none">Amount not stated</span>}
-        <span className="src">{sourceName}</span>
       </div>
     </li>
   );
@@ -224,7 +211,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-export function OppDetail({ o, today, sourceNames }: { o: Opportunity; today: string; sourceNames: Record<string, string> }) {
+export function OppDetail({ o, today }: { o: Opportunity; today: string }) {
   const dl = deadlineLabel(o, today);
   const list = (xs: string[], map: Record<string, string>) => (xs.length ? xs.map(x => label(map, x)).join(", ") : "—");
   return (
@@ -277,8 +264,7 @@ export function OppDetail({ o, today, sourceNames }: { o: Opportunity; today: st
       )}
 
       <p className="fine">
-        Source: {sourceNames[o.source] ?? o.source}
-        {o.alsoListedOn.length > 0 && ` · also listed on ${o.alsoListedOn.map(x => sourceNames[x] ?? x).join(", ")}`} · first seen {fmtDate(o.firstSeen)} · last seen {fmtDate(o.lastSeen)}.
+        Listed since {fmtDate(o.firstSeen)} · last checked {fmtDate(o.lastSeen)}.
         {o.confidence !== "high" &&
           " Some details (industry, stage, audience, amount, dates) were inferred from the program's own page text. Confirm them on the official page before applying."}
       </p>

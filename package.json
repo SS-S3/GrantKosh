@@ -12,7 +12,7 @@
   "scripts": {
     "scrape": "npm run scrape -w scraper --",
     "dev": "npm run dev -w web",
-    "build": "npm run build -w web && node scripts/compress.mjs",
+    "build": "npm run build -w web && node scripts/public-data.mjs && node scripts/compress.mjs",
     "preview": "npm run preview -w web",
     "test": "npm test -w scraper && npm test -w agent",
     "typecheck": "npm run typecheck -w scraper && npm run typecheck -w web && npm run typecheck -w agent",

@@ -41,6 +41,8 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          # Repository variable (Settings → Secrets and variables → Actions → Variables).
+          build-args: VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
           push: true
           tags: |
             ${{ steps.meta.outputs.image }}:latest

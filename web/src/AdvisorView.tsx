@@ -295,15 +295,17 @@ function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
       <div className="planbar">
         <span>
           {trialOpen
-            ? <>Sign up before {dateLabel(me.trialSignupDeadline)} for a <b>free {me.trialDays}-day trial</b>, then ₹{me.priceInr}/month. Free accounts get 2 chats a day.</>
-            : <>Sign in to chat with the advisor: 2 free chats a day, more for ₹{me.priceInr}/month.</>}
+            ? <>Sign up before {dateLabel(me.trialSignupDeadline)} for a <b>free {me.trialDays}-day trial</b>, then ₹{me.priceInr}/month. Free accounts get {me.freeDaily} chats a day.</>
+            : <>Sign in to chat with the advisor: {me.freeDaily} free chats a day, or up to {me.paidDaily} a day for ₹{me.priceInr}/month.</>}
         </span>
         <SignInCta label={trialOpen ? "Start free trial" : "Sign in"} />
       </div>
     );
   }
   const left = Math.max(0, (me.dailyLimit ?? 0) - (me.usedToday ?? 0));
-  const usage = `${left} of ${me.dailyLimit} chats left today`;
+  const p = me.period;
+  const periodLeft = p ? Math.max(0, p.limit - p.used) : null;
+  const usage = `${p ? Math.min(left, periodLeft!) : left} of ${me.dailyLimit} chats left today${p ? ` · ${periodLeft} of ${p.limit} left ${p.kind === "trial" ? "in your trial" : "this month"}` : ""}`;
   return (
     <div className="planbar">
       <span>
@@ -332,7 +334,6 @@ export function AdvisorView({ data }: { data: Dataset }) {
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const byId = useMemo(() => new Map(data.opportunities.map(o => [o.id, o])), [data]);
-  const sourceNames = useMemo(() => Object.fromEntries(data.meta.sources.map(x => [x.id, x.name])), [data.meta]);
 
   useEffect(() => {
     fetch("api/health")
@@ -539,7 +540,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
       )}
 
       <Modal open={!!selected} onClose={() => setOpenId(null)} labelledBy="opp-title">
-        {selected && <OppDetail o={selected} today={data.today} sourceNames={sourceNames} />}
+        {selected && <OppDetail o={selected} today={data.today} />}
       </Modal>
     </section>
   );

@@ -8,8 +8,11 @@ import type { Account } from "./plans";
 
 const SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "";
 const JWT_KEY = process.env.CLERK_JWT_KEY || undefined;
-/** Origins allowed to use a session token, e.g. https://grantkosh.in. Empty = any (Clerk's default). */
-const AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES ?? "").split(",").map(s => s.trim()).filter(Boolean);
+/**
+ * Origins allowed to use a session token, e.g. https://grantkosh.in. Defaults to PUBLIC_URL, so a token
+ * minted for another site can't be used here. Empty = any (Clerk's default).
+ */
+const AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES || (process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).origin : "")).split(",").map(s => s.trim()).filter(Boolean);
 /** Local UI testing only: accepts `Bearer mock-<id>` and keeps accounts in memory. Never in production. */
 const MOCK = !SECRET_KEY && process.env.ADVISOR_MOCK === "1";
 

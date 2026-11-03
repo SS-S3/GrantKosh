@@ -12,9 +12,14 @@ export interface Me {
   trialDays: number;
   trialSignupDeadline: string;
   priceInr: number;
+  freeDaily: number;
+  paidDaily: number;
+  paidMonthly: number;
   plan?: "free" | "trial" | "paid";
   dailyLimit?: number;
   usedToday?: number;
+  /** The trial's total allowance, or the paid plan's monthly one. */
+  period?: { kind: "trial" | "month"; limit: number; used: number } | null;
   trialEndsAt?: string | null;
   paidUntil?: string | null;
   canSubscribe?: boolean;

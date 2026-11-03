@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { FilterGroup, SearchBox, useShowMore } from "./components";
-import { downloadCsv } from "./csv";
 import type { Dataset } from "./data";
 import { fmtDate } from "./format";
 import { INVESTOR_KIND } from "./labels";
@@ -103,13 +102,6 @@ export function InvestorsView({ data }: { data: Dataset }) {
                 <option value="oldest">Oldest registration</option>
               </select>
             </label>
-            <button
-              className="btn btn-ghost"
-              disabled={!rows.length}
-              onClick={() => downloadCsv(`grantkosh-investors-${data.today}.csv`, rows, ["name", "kind", "category", "registrationNo", "email", "city", "state", "registeredOn", "validUntil"])}
-            >
-              Export CSV
-            </button>
           </div>
         </div>
 

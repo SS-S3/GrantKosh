@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { billingUpdate, firstChargeAt, subscriptionIdFor, userIdFromSubscription, verifyWebhook } from "../src/billing";
-import { takeChat, usedToday } from "../src/limits";
+import { cacheKey, getCached, putCached } from "../src/cache";
+import { takeChat, usage } from "../src/limits";
 import { entitlement, istDay } from "../src/plans";
 
 const DAY = 24 * 3600 * 1000;
@@ -10,37 +11,78 @@ const at = (iso: string) => Date.parse(iso);
 describe("entitlement", () => {
   it("gives a 30-day trial to sign-ups before 25 Nov 2026 IST", () => {
     const created = at("2026-11-24T23:59:00+05:30");
-    expect(entitlement({ createdAt: created }, created + 29 * DAY)).toMatchObject({ plan: "trial", dailyLimit: 15, trialEndsAt: created + 30 * DAY });
+    expect(entitlement({ createdAt: created }, created + 29 * DAY)).toMatchObject({ plan: "trial", dailyLimit: 5, period: { kind: "trial", limit: 80 }, trialEndsAt: created + 30 * DAY });
     expect(entitlement({ createdAt: created }, created + 31 * DAY).plan).toBe("free");
   });
 
   it("gives no trial to later sign-ups", () => {
     const created = at("2026-11-25T00:00:00+05:30");
-    expect(entitlement({ createdAt: created }, created + DAY)).toMatchObject({ plan: "free", dailyLimit: 2, trialEndsAt: null });
+    expect(entitlement({ createdAt: created }, created + DAY)).toMatchObject({ plan: "free", dailyLimit: 2, period: null, trialEndsAt: null });
   });
 
   it("treats paid access as paid, during or after a trial", () => {
     const now = at("2026-12-30T10:00:00Z");
-    expect(entitlement({ createdAt: at("2026-12-01T00:00:00Z"), paidUntil: now + DAY }, now).plan).toBe("paid");
+    expect(entitlement({ createdAt: at("2026-12-01T00:00:00Z"), paidUntil: now + DAY }, now)).toMatchObject({ plan: "paid", dailyLimit: 15, period: { id: "m:2026-12", limit: 120 } });
     expect(entitlement({ createdAt: at("2026-12-01T00:00:00Z"), paidUntil: now - 1 }, now).plan).toBe("free");
     expect(entitlement(null, now).plan).toBe("free");
   });
 });
 
-describe("daily limits", () => {
+describe("limits", () => {
+  const free = { plan: "free" as const, dailyLimit: 2, period: null };
+  const who = () => `test-${Math.random()}`;
+
   it("allows a free user 2 chats per IST day", async () => {
     const now = at("2026-12-01T10:00:00+05:30");
-    const who = `test-${Math.random()}`;
-    expect(await takeChat(who, "free", 2, now)).toBe("ok");
-    expect(await takeChat(who, "free", 2, now)).toBe("ok");
-    expect(await takeChat(who, "free", 2, now)).toBe("user");
-    expect(await usedToday(who, now)).toBe(2);
+    const id = who();
+    expect(await takeChat(id, free, { now })).toBe("ok");
+    expect(await takeChat(id, free, { now })).toBe("ok");
+    expect(await takeChat(id, free, { now })).toBe("user");
+    expect((await usage(id, free, now)).today).toBe(2);
     // Midnight IST starts a new day.
-    expect(await takeChat(who, "free", 2, at("2026-12-02T00:00:01+05:30"))).toBe("ok");
+    expect(await takeChat(id, free, { now: at("2026-12-02T00:00:01+05:30") })).toBe("ok");
+  });
+
+  it("stops a trial at its total even with chats left today", async () => {
+    const trial = { plan: "trial" as const, dailyLimit: 5, period: { id: "trial", kind: "trial" as const, limit: 3 } };
+    const id = who();
+    for (let day = 1; day <= 3; day++) expect(await takeChat(id, trial, { now: at(`2026-11-0${day}T09:00:00Z`) })).toBe("ok");
+    expect(await takeChat(id, trial, { now: at("2026-11-04T09:00:00Z") })).toBe("period");
+    expect(await usage(id, trial, at("2026-11-04T09:00:00Z"))).toEqual({ today: 0, period: 3 });
+  });
+
+  it("turns chats away as busy when the 10-second window is full and no wait is allowed", async () => {
+    const now = at("2026-12-05T10:00:00Z");
+    const paid = { plan: "paid" as const, dailyLimit: 15, period: null };
+    for (let i = 0; i < 10; i++) expect(await takeChat(who(), paid, { now, waitMs: 0 })).toBe("ok");
+    const id = who();
+    expect(await takeChat(id, paid, { now, waitMs: 0 })).toBe("busy");
+    // A busy refusal costs the user nothing, and a cached answer needs no room in the window.
+    expect((await usage(id, paid, now)).today).toBe(0);
+    expect(await takeChat(id, paid, { now, waitMs: 0, model: false })).toBe("ok");
   });
 
   it("uses the IST date", () => {
     expect(istDay(at("2026-12-01T19:00:00Z"))).toBe("2026-12-02");
+  });
+});
+
+describe("answer cache", () => {
+  it("replays a finished single-question answer for the same tier and data", async () => {
+    const key = cacheKey([{ role: "user", content: "Grants for  drones? " }], "flash", "d1")!;
+    expect(cacheKey([{ role: "user", content: "grants for drones" }], "flash", "d1")).toBe(key);
+    expect(cacheKey([{ role: "user", content: "grants for drones" }], "free", "d1")).not.toBe(key);
+    expect(cacheKey([{ role: "user", content: "grants for drones" }], "flash", "d2")).not.toBe(key);
+    expect(cacheKey([{ role: "user", content: "a" }, { role: "assistant", content: "b" }, { role: "user", content: "c" }], "flash", "d1")).toBeNull();
+
+    await putCached(key, [{ type: "status", text: "…" }, { type: "text", delta: "Try " }, { type: "text", delta: "iDEX" }, { type: "done", model: "m1" }]);
+    expect(await getCached(key)).toEqual([{ type: "text", delta: "Try iDEX" }, { type: "done", model: "m1" }]);
+  });
+
+  it("never stores a failed answer", async () => {
+    const key = cacheKey([{ role: "user", content: "failing question" }], "flash", "d1")!;
+    await putCached(key, [{ type: "text", delta: "Half" }, { type: "error", code: "quota", message: "x" }]);
+    expect(await getCached(key)).toBeNull();
   });
 });
 

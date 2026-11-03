@@ -5,11 +5,15 @@ Funding Advisor API. Production build: `npm run build:prod`. Start: `npm start`.
 
 | Option | Cost | AI advisor | Effort |
 |---|---|---|---|
-| **Vercel (recommended, always on)** | Pro plan once you charge subscriptions | Yes | ~15 min, no CLI |
-| Oracle Cloud Always Free VM (always on) | Free | Yes | ~45 min, SSH |
+| **Vercel (launch, up to ~200 users)** | Pro plan (~$20/month) once you charge subscriptions | Yes | ~15 min, no CLI |
+| **Oracle Cloud Always Free VM (as you grow)** | Free (domain only) | Yes | ~45 min, SSH |
 | A. Render free + keep-awake monitor | Free | Yes | ~15 min, no CLI |
 | B. Docker (Google Cloud Run, Fly.io, Railway, any VPS) | Free tiers / cheap | Yes | ~15 min |
 | C. GitHub Pages | Free | No (guided matching only) | ~5 min |
+
+**Plan:** launch on Vercel, then move to Oracle once you pass roughly 200 users, or sooner if the Pro plan
+costs more than subscriptions bring in. The same repo, environment variables, Clerk app, Cashfree plan and
+Upstash database work on both, so moving is a DNS switch (see *Moving from Vercel to Oracle*).
 
 ---
 
@@ -30,8 +34,8 @@ Funding Advisor API. Production build: `npm run build:prod`. Start: `npm start`.
 
 ## Vercel (always on)
 
-Vercel serves the site and the data from its CDN, and runs the Advisor API as two serverless functions
-(`/api/health`, `/api/chat`). `vercel.json` runs `npm run build:vercel`, which builds the site and writes a
+Vercel serves the site and the data from its CDN, and runs the Advisor API as serverless functions
+(`/api/health`, `/api/me`, `/api/chat`, `/api/billing/subscribe`, `/api/billing/webhook`). `vercel.json` runs `npm run build:vercel`, which builds the site and writes a
 [Build Output](https://vercel.com/docs/build-output-api/v3) to `.vercel/output/` with
 `scripts/vercel-output.mjs`. Static pages never sleep. A function that has been idle starts cold, which adds
 a short delay to the first Advisor answer only.
@@ -44,8 +48,9 @@ nothing is sold yet).
 
 1. <https://vercel.com/new> → import the GitHub repo. Leave *Framework Preset* as **Other** and leave the
    build settings empty: `vercel.json` sets them.
-2. Settings → Environment Variables → add `GEMINI_API_KEY` (Production). Optional: `GEMINI_MODELS`,
-   `ADVISOR_PER_IP_LIMIT`, `ADVISOR_DAILY_LIMIT`. Do not set `TRUST_PROXY`: the functions detect Vercel.
+2. Settings → Environment Variables → add `GEMINI_API_KEYS` (Production): one key, or up to four separated
+   by commas (see *Gemini keys* below). Optional: `GEMINI_MODELS`, `GEMINI_MODELS_FREE` and the limits under
+   *Rate limits and cost*. Do not set `TRUST_PROXY`: the functions detect Vercel.
 3. Settings → Functions → Function Region → **Mumbai (bom1)**, closest to Indian users.
 4. Deploy, then open `https://<project>.vercel.app/api/health` and check for `"ai":true`.
 
@@ -65,11 +70,11 @@ If Redis is unreachable, the functions log `[limits] Redis unavailable` and fall
 
 The directory, investors and sources stay free and need no account. The **Advisor chat** needs sign-in:
 
-| Plan | Who | Chats per day (resets midnight IST) |
-|---|---|---|
-| Free | any signed-in account | `ADVISOR_FREE_DAILY` = 2 |
-| Trial | accounts created before `TRIAL_SIGNUP_DEADLINE` (25 Nov 2026, 00:00 IST), for `TRIAL_DAYS` = 30 days after sign-up | `ADVISOR_PAID_DAILY` = 15 |
-| Paid | active ₹101/month subscription | `ADVISOR_PAID_DAILY` = 15 |
+| Plan | Who | Model | Chats (days reset at midnight IST) |
+|---|---|---|---|
+| Free | any signed-in account | Flash-Lite (`GEMINI_MODELS_FREE`) | `ADVISOR_FREE_DAILY` = 2 a day |
+| Trial | accounts created before `TRIAL_SIGNUP_DEADLINE` (25 Nov 2026, 00:00 IST), for `TRIAL_DAYS` = 30 days after sign-up | Flash (`GEMINI_MODELS`) | `ADVISOR_TRIAL_DAILY` = 5 a day, `ADVISOR_TRIAL_TOTAL` = 80 in all |
+| Paid | active ₹129/month subscription | Flash (`GEMINI_MODELS`) | `ADVISOR_PAID_DAILY` = 15 a day, `ADVISOR_PAID_MONTHLY` = 120 per calendar month |
 
 **Clerk (sign-in):**
 1. Create an application at <https://dashboard.clerk.com>; enable Google and email code sign-in.
@@ -80,7 +85,7 @@ The directory, investors and sources stay free and need no account. The **Adviso
    The CSP picks up the Clerk origin from the publishable key automatically.
 
 **Cashfree (subscriptions):**
-1. Cashfree dashboard → Subscriptions → create a **Periodic** plan: ₹101, every 1 month. Copy its plan id.
+1. Cashfree dashboard → Subscriptions → create a **Periodic** plan: ₹129, every 1 month. Copy its plan id.
 2. Vercel env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_PLAN_ID`,
    `CASHFREE_ENV` (`sandbox` until you have tested, then `production`), and `PUBLIC_URL=https://<your-domain>`.
 3. Developers → Webhooks → add `https://<your-domain>/api/billing/webhook` for subscription events.
@@ -98,20 +103,59 @@ the free tier Google may use prompts to improve its products, which paying custo
 enable billing on the key's project (Tier 1). Then edit the fine print at the bottom of the chat in
 `web/src/AdvisorView.tsx`, which still says the free tier is used.
 
+**Gemini keys.** `GEMINI_API_KEYS` takes up to four (or more) keys, separated by commas. Requests start on
+each key in turn. A key that returns a quota error (429) rests for a minute, after a server error for 15
+seconds, and if rejected for 10 minutes; the request moves to the next key first, then to the next model.
+Keys from one Google Cloud project share one quota, so they only add failover. Keys from separate projects
+each have their own quota and bill. Google's terms do not allow using extra projects to get around rate
+limits, so for more capacity on one product, ask for a quota increase on the paid tier (AI Studio → Rate
+limits) and use the extra keys for failover and to separate billing.
+
 ### Rate limits and cost
 
 One Advisor answer makes 1–5 Gemini calls (tool use). Estimate ~15k input and ~1.5k output tokens, about
-₹0.7 on a Flash model. Check current prices in AI Studio and adjust.
+₹0.7 on Flash and roughly a quarter of that on Flash-Lite. Check current prices in AI Studio. Each answer's
+real token use is logged (`[usage] plan=… model=… in=… out=…`) and added to daily totals in Redis
+(`gk:tok:<day>:<model>:in|out`, kept 90 days), so you can price from measured numbers.
 
 | Limit | Default | Why |
 |---|---|---|
-| `ADVISOR_FREE_DAILY` | 2 per account per day | Lets people try it; costs at most ~₹1.4 a day per free user |
-| `ADVISOR_PAID_DAILY` | 15 per account per day | A heavy user (15 × 30 = 450 chats) costs ~₹300 a month, but typical use is a few chats a week. ₹101 minus 18% GST and ~2% gateway fee leaves ~₹84, which covers ~120 chats a month. Lower it if heavy users appear. |
-| `ADVISOR_FREE_POOL_DAILY` | 300 per day, all free users together | Caps free-tier spend at ~₹210 a day, so free users cannot use up the budget meant for paying users |
+| `ADVISOR_FREE_DAILY` | 2 per account per day | Lets people try it on Flash-Lite; a few paise a day per free user |
+| `ADVISOR_TRIAL_DAILY`, `ADVISOR_TRIAL_TOTAL` | 5 a day, 80 in all | Caps a trial at ~₹56 |
+| `ADVISOR_PAID_DAILY`, `ADVISOR_PAID_MONTHLY` | 15 a day, 120 a month | Worst case ~₹84 a month. ₹129 nets ~₹105 after 18% GST and the gateway fee (~₹125 if you are not GST-registered). Typical use is far lower. |
+| `ADVISOR_FREE_POOL_DAILY` | 300 per day, all free users together | Free users cannot use up the budget meant for paying users |
 | `ADVISOR_DAILY_LIMIT` | 2000 per day, everyone | Hard ceiling under your Gemini quota and budget. Counted per Gemini day (midnight Pacific), when Google resets quotas |
-| `ADVISOR_PER_IP_LIMIT` | 12 per IP per 10 min | Stops scripts before any account lookup |
+| `ADVISOR_GLOBAL_RPM` | 60 per minute, everyone | Counted in 10-second windows. When a window is full, a chat waits for the next one (the person sees "you're next in line"), for up to `ADVISOR_QUEUE_WAIT_MS` = 20 s, then gets "busy, try again in a minute". Set it under your Gemini requests-per-minute quota divided by ~3 (calls per answer). |
+| `ADVISOR_PER_IP_LIMIT` | 12 chats per IP per 10 min | Stops scripts before any account lookup |
+| `ADVISOR_IP_API_PER_MIN` | 60 API calls per IP per minute | Every API route except health and the signed Cashfree webhook |
+| One answer at a time per account | fixed | A second chat while one is running gets "still being answered" |
+| `ADVISOR_CACHE_TTL_S` | 6 hours | An opening question identical to an earlier one (ignoring case and spacing) replays the stored answer: no model call, and no wait when busy. It still counts against the person's own limits. Cleared daily with the data. `0` turns it off. |
 
 Set a budget alert on the Google Cloud project as well. The limits need Upstash Redis on Vercel (step 2).
+
+### Bots, abuse and DDoS
+
+What the code does:
+- Per-IP limits on every API route, per-account limits, one answer at a time per account, and a global
+  rate and daily ceiling (above), so no single source can run up the Gemini bill.
+- Chat and subscribe accept only JSON POSTs from the site's own origin (`ALLOWED_ORIGINS` adds others).
+  Clerk session tokens are accepted only for `PUBLIC_URL` (or `CLERK_AUTHORIZED_PARTIES`).
+- Body size caps, schema-checked input, and only the last 8 turns of a chat go to the model.
+- Cashfree webhooks must be signed, and each delivery is applied once, so a captured webhook cannot be
+  replayed to extend access.
+- The Node server cuts off slow or half-sent requests (header and request timeouts).
+- Strict CSP and security headers on every response.
+
+What the code cannot do: stop a flood of traffic before it reaches the app. That needs the platform's edge:
+1. **Vercel → Firewall:** turn on **Bot Protection** (challenge non-browser traffic) and keep the default
+   DDoS mitigation. During an attack, turn on **Attack Challenge Mode**. Add a rate-limit rule, e.g. 20
+   requests per minute per IP on `/api/chat`, so floods are dropped before a function runs and before you
+   pay for it.
+2. **Clerk → Configure → Attack protection:** turn on **Bot sign-up protection** (CAPTCHA), and in
+   Restrictions **block disposable email addresses**. This limits fake accounts collecting extra trials.
+   Requiring a verified phone number at sign-up stops it further, at some cost to sign-ups.
+3. **Upstash:** set a monthly budget cap, since every chat uses a few Redis commands.
+4. **Google Cloud:** a budget alert, and API key restrictions (Generative Language API only).
 
 ### 4. Domain and daily data
 
@@ -124,6 +168,31 @@ Set a budget alert on the Google Cloud project as well. The limits need Upstash 
    it is only for down alerts, so a 15-minute interval is enough).
 
 To check the build output locally: `npm run build:vercel`, then look in `.vercel/output/`.
+
+## Moving from Vercel to Oracle
+
+Do this when you pass roughly 200 users, or when Vercel Pro costs more than it saves you in effort. Users
+notice nothing: same domain, same accounts, same subscriptions, same usage counts.
+
+1. **Build the image with sign-in.** GitHub → Settings → Secrets and variables → Actions → **Variables** →
+   add `VITE_CLERK_PUBLISHABLE_KEY` (the same value as on Vercel). Then run the *Container image* workflow.
+   Without it the image has no sign-in button.
+2. **Set up the VM** with the Oracle steps below, but don't change DNS yet.
+3. **Copy the environment variables** from Vercel (Settings → Environment Variables, or `vercel env pull`)
+   into `deploy/oracle/.env`. Keep `UPSTASH_REDIS_REST_URL`/`_TOKEN` (or set them from `KV_REST_API_URL`/`_TOKEN`):
+   the trial totals, monthly usage and webhook history live there, so keeping the same database carries
+   them over. Set `CLERK_PUBLISHABLE_KEY` too, so the server's CSP allows Clerk.
+4. **Test before switching.** Add the VM's IP to your own computer's hosts file for the domain, open the
+   site, sign in, and ask the Advisor a question. Check `/api/health` shows `"auth":true,"billing":true`.
+5. **Switch DNS:** point the domain's A record (and `www`) at the VM and remove the Vercel records. Use a
+   short TTL (300 s) a day before, so the switch takes minutes. Caddy gets the TLS certificate on first visit.
+6. **Nothing changes in Clerk or Cashfree**, because the domain is the same: the webhook URL and
+   `PUBLIC_URL` stay valid.
+7. Keep the Vercel project for a week as a fallback (switching DNS back is the rollback), then delete it
+   or downgrade to Hobby.
+
+The daily data job keeps working: `scrape.yml` commits new data, and `image.yml` rebuilds the image, which the
+VM pulls (see *Operating the VM*).
 
 ## Oracle Cloud Always Free (always on)
 
@@ -300,16 +369,22 @@ matching in the browser.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | (none) | Enables the AI advisor. Without it the advisor runs in guided mode. |
-| `GEMINI_MODELS` | `gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash` | Tried in order; falls back when one is rate-limited |
-| `ADVISOR_PER_IP_LIMIT` | `12` | Questions per IP per 10 minutes |
+| `GEMINI_API_KEYS` | (none) | Comma-separated Gemini keys; enables the AI advisor. `GEMINI_API_KEY` (one key) also works. Without a key the advisor runs in guided mode. |
+| `GEMINI_MODELS` | `gemini-3.8-flash,gemini-2.5-flash,gemini-3.5-flash-lite` | Trial and paid plans. Tried in order; falls back when one is rate-limited |
+| `GEMINI_MODELS_FREE` | `gemini-3.5-flash-lite,gemini-2.5-flash-lite` | Free plan |
+| `ADVISOR_PER_IP_LIMIT` | `12` | Chats per IP per 10 minutes |
+| `ADVISOR_IP_API_PER_MIN` | `60` | API calls per IP per minute |
 | `ADVISOR_FREE_DAILY` | `2` | Chats per day for a free account (or per IP when sign-in is off) |
-| `ADVISOR_PAID_DAILY` | `15` | Chats per day for trial and paid accounts |
+| `ADVISOR_TRIAL_DAILY`, `ADVISOR_TRIAL_TOTAL` | `5`, `80` | Trial chats per day and in all |
+| `ADVISOR_PAID_DAILY`, `ADVISOR_PAID_MONTHLY` | `15`, `120` | Paid chats per day and per calendar month |
 | `ADVISOR_FREE_POOL_DAILY` | `300` | All free-plan chats per Gemini day |
 | `ADVISOR_DAILY_LIMIT` | `2000` | All chats per Gemini day; keep it under your Gemini quota |
+| `ADVISOR_GLOBAL_RPM` | `60` | All model-backed chats per minute; extra chats wait up to `ADVISOR_QUEUE_WAIT_MS` (`20000`) |
+| `ADVISOR_CACHE_TTL_S` | `21600` | How long a repeated opening question's answer is reused; `0` = off |
+| `ALLOWED_ORIGINS` | unset | Extra browser origins allowed to call the API (comma-separated) |
 | `TRIAL_SIGNUP_DEADLINE` | `2026-11-25T00:00:00+05:30` | Accounts created before this get the trial |
 | `TRIAL_DAYS` | `30` | Trial length from sign-up |
-| `SUBSCRIPTION_PRICE_INR` | `101` | Price shown in the UI; must match the Cashfree plan |
+| `SUBSCRIPTION_PRICE_INR` | `129` | Price shown in the UI; must match the Cashfree plan |
 | `VITE_CLERK_PUBLISHABLE_KEY` | unset | Turns on sign-in (build time). Without Clerk, chat is limited per IP like a free account. |
 | `CLERK_SECRET_KEY` | unset | Verifies sessions and stores paid-until dates on Clerk users |
 | `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_PLAN_ID` | unset | Turn on subscriptions |
@@ -322,22 +397,37 @@ matching in the browser.
 | `GRANTKOSH_DATA_DIR` | auto | Override where `opportunities.json` and related files are read from |
 | `ADVISOR_MOCK` | unset | `1` = scripted fake model, for UI testing without a key. Never set in production. |
 
+## Keeping the data private
+
+The site no longer advertises its sources, links to the data files, or offers CSV export, and search engines
+are told not to index `/data/` (`robots.txt` and an `X-Robots-Tag` header). This stops casual copying only:
+- The browser still downloads `data/opportunities.json` and `investors.json` to search and filter, so
+  anyone can save them from the browser's developer tools.
+- If the GitHub repository is public, the data and its daily history are public there too. Make the
+  repository private (Settings → General → Danger zone → Change visibility). Vercel, the Actions workflows
+  and GHCR keep working; a private GHCR image needs `docker login ghcr.io` on the Oracle VM with a
+  read-only token. Copies made while it was public, under the previous CC BY 4.0 notice, can't be recalled.
+
+Fully hiding the data needs server-side search: the browser sends the query and gets back one page of
+results, never the whole file. That fits the planned tag index, with per-IP limits against scraping.
+
 ## What's already production-ready
 
 - **Server:** a single bundled file (`agent/dist/server.mjs`, no `node_modules` needed at runtime), listening on `0.0.0.0`, with graceful shutdown on SIGTERM.
 - **Static files:** precompressed with brotli and gzip (data JSON 7.5 MB → ~0.6 MB). Cache policy: hashed assets cached for a year, data for an hour, `index.html` revalidated. Supports `Last-Modified`/304 and HEAD.
 - **Security headers:** strict CSP (self + Google Fonts only), `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy, and HSTS behind HTTPS proxies.
-- **Request handling:** path-traversal protection, 64 KB body limit, schema-validated chat input, and per-IP and daily rate limits.
-- **AI resilience:** model fallback on quota or overload. A rejected key or an outage switches the UI to guided mode.
+- **Request handling:** path-traversal protection, body size limits, schema-validated chat input, same-origin JSON POSTs, request timeouts, and the limits under *Rate limits and cost*.
+- **AI resilience:** several keys with failover, then model fallback on quota or overload; a queue when busy; cached answers for repeated questions. If every key is rejected or Gemini is down, the UI switches to guided mode.
 - **CI** (`.github/workflows/validate.yml`): validate, typecheck, run the 74 tests, production build, a server smoke test, and a Docker build-and-probe.
 - **Daily data refresh** (`.github/workflows/scrape.yml`): 06:00 IST scrape, commit, redeploy.
 
 ## After launch
 
-- **Monitor quota:** AI Studio → Rate limits. If users often hit "free AI quota is used up", lower
-  `ADVISOR_PER_IP_LIMIT` or move to a paid tier.
-- **Watch the data job:** the Sources tab shows each source's status. A stale source keeps its last good data,
+- **Monitor quota and cost:** AI Studio → Rate limits, and the `[usage]` log lines or `gk:tok:*` totals.
+  If people often see "busy", raise the Gemini quota and `ADVISOR_GLOBAL_RPM` together.
+- **Watch the data job:** `web/public/data/meta.json` lists each source's status (no longer shown on the site). A stale source keeps its last good data,
   and the workflow log shows why it failed.
 - **Roll back:** Vercel → Deployments → *Instant Rollback*; Render → Deploys → *Rollback*; Cloud Run → Revisions.
 - **Privacy:** investor emails come from SEBI's public register; contact-person names and street addresses are not
-  published. Advisor conversations are not stored by GrantKosh, but on the free tier Google may use them.
+  published. Advisor conversations are not stored by GrantKosh, except that the answer to an opening question is kept for up to
+6 hours (under a hash of the question) to answer the same question again. On the free tier Google may use them.
