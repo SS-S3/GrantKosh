@@ -1,0 +1,23 @@
+{
+  "csp": {
+    "default-src": ["'self'"],
+    "script-src": ["'self'", "https://challenges.cloudflare.com", "https://sdk.cashfree.com"],
+    "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    "font-src": ["'self'", "https://fonts.gstatic.com"],
+    "img-src": ["'self'", "data:", "https://img.clerk.com"],
+    "connect-src": ["'self'", "https://*.cashfree.com"],
+    "frame-src": ["https://challenges.cloudflare.com", "https://*.cashfree.com"],
+    "worker-src": ["'self'", "blob:"],
+    "frame-ancestors": ["'none'"],
+    "base-uri": ["'self'"],
+    "form-action": ["'self'", "https://*.cashfree.com"],
+    "object-src": ["'none'"]
+  },
+  "headers": {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+  }
+}

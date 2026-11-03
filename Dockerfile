@@ -3,7 +3,9 @@
 # Run:    docker run -p 8080:8080 -e GEMINI_API_KEY=... grantkosh
 # syntax=docker/dockerfile:1
 
-FROM node:22-alpine AS build
+# The build output is plain JS and static files, so build once on the native platform
+# and copy it into each target architecture (amd64 and arm64 for Oracle Ampere).
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 # Install with only the manifests first so dependency layers cache across source edits.
 COPY package.json package-lock.json ./

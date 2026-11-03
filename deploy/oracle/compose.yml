@@ -1,0 +1,36 @@
+# GrantKosh on a single VM: the app container behind Caddy, which handles HTTPS.
+# Run from this folder: docker compose up -d   (setup.sh does this for you)
+name: grantkosh
+
+services:
+  app:
+    image: ${IMAGE:?set IMAGE in .env}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TRUST_PROXY: "1"
+    # Only Caddy (on the host network) can reach the app; it is never exposed directly.
+    ports:
+      - "127.0.0.1:8080:8080"
+    logging:
+      driver: local
+      options: { max-size: 10m, max-file: "3" }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Host networking: Caddy listens on the VM's ports 80/443 and proxies to 127.0.0.1:8080.
+    network_mode: host
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # TLS certificates; keep this volume
+      - caddy_config:/config
+    logging:
+      driver: local
+      options: { max-size: 10m, max-file: "3" }
+
+volumes:
+  caddy_data:
+  caddy_config:

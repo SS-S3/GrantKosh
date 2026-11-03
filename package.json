@@ -20,7 +20,8 @@
     "dev:agent": "npm run dev -w agent",
     "start": "node agent/dist/server.mjs",
     "build:agent": "npm run build -w agent",
-    "build:prod": "npm run build && npm run build:agent"
+    "build:prod": "npm run build && npm run build:agent",
+    "build:vercel": "npm run build && node scripts/vercel-output.mjs"
   },
   "engines": {
     "node": ">=20.12"

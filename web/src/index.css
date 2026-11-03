@@ -316,3 +316,16 @@ tr:last-child td { border-bottom: 0; }
   .bubble-user { max-width: 92%; }
   .g-switches .btn { margin-left: 0; width: 100%; justify-content: center; }
 }
+
+/* Advisor plan bar and subscription */
+.btn-sm { padding: 6px 12px; font-size: 14px; }
+.planbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 12px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--accent-soft); font-size: 14px; color: var(--ink); }
+.planbar-note { display: block; }
+.subscribe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 320px; justify-content: flex-end; }
+.subscribe .g-input { flex: 1 1 200px; max-width: 260px; }
+.subscribe .fine { flex-basis: 100%; text-align: right; margin: 0; }
+.starter:disabled { opacity: .55; cursor: default; }
+@media (max-width: 640px) {
+  .subscribe, .subscribe .fine { justify-content: flex-start; text-align: left; }
+  .subscribe .g-input { max-width: none; }
+}

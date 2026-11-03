@@ -10,9 +10,10 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@clerk/react": "6.17.8",
+    "minisearch": "^7.1.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "minisearch": "^7.1.0"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

@@ -17,6 +17,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:prod
+      - run: node scripts/vercel-output.mjs
       - name: Smoke-test the production server
         run: |
           PORT=8080 node agent/dist/server.mjs &

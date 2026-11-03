@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { SignInCta, startSubscription, useAccount, type Me } from "./account";
 import { Modal } from "./components";
 import type { Dataset } from "./data";
 import { amountLabel, deadlineLabel } from "./format";
@@ -28,6 +29,8 @@ interface Turn {
   tools?: string[];
   matches?: MatchSummary[];
   error?: string;
+  /** Server error code: "upgrade" and "auth" get a call to action. */
+  errorCode?: string;
   pending?: boolean;
 }
 
@@ -39,8 +42,8 @@ const STARTERS = [
 ];
 
 // ---------- SSE over fetch ----------
-async function streamChat(messages: Array<{ role: string; content: string }>, onEvent: (e: AgentEvent) => void, signal: AbortSignal) {
-  const res = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }), signal });
+async function streamChat(messages: Array<{ role: string; content: string }>, headers: Record<string, string>, onEvent: (e: AgentEvent) => void, signal: AbortSignal) {
+  const res = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ messages }), signal });
   if (!res.ok || !res.body) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
     onEvent({ type: "error", code: body.code ?? String(res.status), message: body.error ?? `Advisor unavailable (HTTP ${res.status}).` });
@@ -236,9 +239,90 @@ function GuidedMatcher({ data, onOpen }: { data: Dataset; onOpen: (id: string) =
   );
 }
 
+// ---------- plan and subscription ----------
+const dateLabel = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+
+function SubscribeForm({ me }: { me: Me }) {
+  const { authHeaders } = useAccount();
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!me.canSubscribe) return null;
+  if (!open) {
+    return (
+      <button className="btn btn-primary btn-sm" onClick={() => setOpen(true)}>
+        Subscribe · ₹{me.priceInr}/month
+      </button>
+    );
+  }
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await startSubscription(phone.replace(/\D/g, "").slice(-10), await authHeaders());
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <form
+      className="subscribe"
+      onSubmit={e => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <input className="g-input" inputMode="numeric" autoComplete="tel-national" placeholder="10-digit mobile for UPI AutoPay" value={phone} onChange={e => setPhone(e.target.value)} aria-label="Mobile number" />
+      <button type="submit" className="btn btn-primary btn-sm" disabled={busy || phone.replace(/\D/g, "").length < 10}>
+        {busy ? "Opening…" : `Pay ₹${me.priceInr}/month`}
+      </button>
+      {error && <span className="chat-error">{error}</span>}
+      <span className="fine">
+        Billed monthly by Cashfree via UPI AutoPay or card{me.plan === "trial" && me.trialEndsAt ? `, first charge when your trial ends on ${dateLabel(me.trialEndsAt)}` : ""}. Cancel any time from your UPI app or bank.
+      </span>
+    </form>
+  );
+}
+
+function PlanBar({ me, required }: { me: Me | null; required: boolean }) {
+  const { signedIn } = useAccount();
+  if (!required || !me) return null;
+  const trialOpen = Date.now() < Date.parse(me.trialSignupDeadline);
+  if (!signedIn || !me.signedIn) {
+    return (
+      <div className="planbar">
+        <span>
+          {trialOpen
+            ? <>Sign up before {dateLabel(me.trialSignupDeadline)} for a <b>free {me.trialDays}-day trial</b>, then ₹{me.priceInr}/month. Free accounts get 2 chats a day.</>
+            : <>Sign in to chat with the advisor: 2 free chats a day, more for ₹{me.priceInr}/month.</>}
+        </span>
+        <SignInCta label={trialOpen ? "Start free trial" : "Sign in"} />
+      </div>
+    );
+  }
+  const left = Math.max(0, (me.dailyLimit ?? 0) - (me.usedToday ?? 0));
+  const usage = `${left} of ${me.dailyLimit} chats left today`;
+  return (
+    <div className="planbar">
+      <span>
+        {me.plan === "paid" && <><b>Subscribed</b> · {usage}</>}
+        {me.plan === "trial" && <><b>Free trial</b> until {dateLabel(me.trialEndsAt!)} · {usage}</>}
+        {me.plan === "free" && <><b>Free plan</b> · {usage}</>}
+      </span>
+      {me.plan !== "paid" && <SubscribeForm me={me} />}
+    </div>
+  );
+}
+
 // ---------- main view ----------
 export function AdvisorView({ data }: { data: Dataset }) {
+  const account = useAccount();
   const [ai, setAi] = useState<boolean | null>(null);
+  /** The server wants a signed-in user for chat. */
+  const [authRequired, setAuthRequired] = useState(false);
+  const [notice, setNotice] = useState("");
   const [mode, setMode] = useState<"chat" | "guided">("chat");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -253,8 +337,9 @@ export function AdvisorView({ data }: { data: Dataset }) {
   useEffect(() => {
     fetch("api/health")
       .then(r => (r.ok ? r.json() : { ai: false }))
-      .then((h: { ai?: boolean }) => {
+      .then((h: { ai?: boolean; auth?: boolean }) => {
         setAi(!!h.ai);
+        setAuthRequired(!!h.auth);
         if (!h.ai) setMode("guided");
       })
       .catch(() => {
@@ -263,14 +348,34 @@ export function AdvisorView({ data }: { data: Dataset }) {
       });
     return () => abortRef.current?.abort();
   }, []);
+
+  // Back from Cashfree checkout: the webhook may land a few seconds later, so re-check the plan a few times.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("billing") !== "return") return;
+    params.delete("billing");
+    history.replaceState(null, "", params.size ? `?${params}` : location.pathname);
+    setNotice("Thanks! Your subscription is being confirmed. This page updates once Cashfree confirms the mandate.");
+    let tries = 0;
+    const timer = setInterval(async () => {
+      const me = await account.refresh();
+      if (me?.plan === "paid" || ++tries >= 10) {
+        clearInterval(timer);
+        setNotice(me?.plan === "paid" ? "Subscription active. Thank you for supporting GrantKosh!" : "Payment noted. If your plan hasn't updated in a few minutes, refresh the page.");
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [account.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollIntoView, which React would treat as a cleanup.
     endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [turns, status]);
 
+  const locked = authRequired && !account.signedIn;
+
   const send = async (text: string) => {
     const q = text.trim();
-    if (!q || busy) return;
+    if (!q || busy || locked) return;
     setDraft("");
     const history = [...turns.filter(t => !t.error && t.text), { role: "user" as const, text: q }];
     setTurns(t => [...t, { role: "user", text: q }, { role: "assistant", text: "", tools: [], pending: true }]);
@@ -282,6 +387,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
     try {
       await streamChat(
         history.map(t => ({ role: t.role, content: t.text })),
+        await account.authHeaders(),
         e => {
           if (e.type === "text") {
             setStatus("");
@@ -292,7 +398,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
           } else if (e.type === "matches") update(t => ({ ...t, matches: e.items }));
           else if (e.type === "status") setStatus(e.text);
           else if (e.type === "error") {
-            update(t => ({ ...t, error: e.message }));
+            update(t => ({ ...t, error: e.message, errorCode: e.code }));
             if (e.code === "unavailable") setAi(false);
           }
         },
@@ -304,6 +410,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
       update(t => ({ ...t, pending: false }));
       setBusy(false);
       setStatus("");
+      void account.refresh();
     }
   };
 
@@ -343,12 +450,14 @@ export function AdvisorView({ data }: { data: Dataset }) {
         </>
       ) : (
         <div className="chat">
+          {notice && <p className="planbar planbar-note">{notice}</p>}
+          <PlanBar me={account.me} required={authRequired} />
           <div className="chat-log" aria-live="polite">
             {turns.length === 0 && (
               <div className="starters">
                 <p className="g-label">Try one of these</p>
                 {STARTERS.map(s => (
-                  <button key={s} className="starter" onClick={() => send(s)}>
+                  <button key={s} className="starter" disabled={locked} onClick={() => send(s)}>
                     {s}
                   </button>
                 ))}
@@ -371,9 +480,13 @@ export function AdvisorView({ data }: { data: Dataset }) {
                   {t.error && (
                     <div className="chat-error">
                       {t.error}{" "}
-                      <button className="link-btn" onClick={() => setMode("guided")}>
-                        Use guided match
-                      </button>
+                      {t.errorCode === "auth" ? (
+                        <SignInCta />
+                      ) : (
+                        <button className="link-btn" onClick={() => setMode("guided")}>
+                          Use guided match
+                        </button>
+                      )}
                     </div>
                   )}
                   {cardsFor(t).length > 0 && (
@@ -414,7 +527,7 @@ export function AdvisorView({ data }: { data: Dataset }) {
                 Stop
               </button>
             ) : (
-              <button type="submit" className="btn btn-primary" disabled={!draft.trim()}>
+              <button type="submit" className="btn btn-primary" disabled={!draft.trim() || locked}>
                 Ask
               </button>
             )}

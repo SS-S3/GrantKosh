@@ -6,5 +6,5 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   // In development the advisor API runs separately (npm run dev:agent); proxy it.
-  server: { proxy: { "/api": "http://localhost:8787" } },
+  server: { proxy: { "/api": process.env.ADVISOR_URL ?? "http://localhost:8787" } },
 });

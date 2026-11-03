@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
 import type { Investor, Opportunity, Status } from "../../web/src/types";
 
-// Prefer the built site's copy (what users download), then the scraper's output in the repo.
-const CANDIDATES = ["../../web/dist/data/", "../../web/public/data/"].map(p => fileURLToPath(new URL(p, import.meta.url)));
+// A Vercel function bundle carries its own copy next to it; otherwise prefer the built site's copy
+// (what users download), then the scraper's output in the repo.
+const CANDIDATES = ["./data/", "../../web/dist/data/", "../../web/public/data/"].map(p => fileURLToPath(new URL(p, import.meta.url)));
 export const DATA_DIR = process.env.GRANTKOSH_DATA_DIR ?? CANDIDATES.find(d => existsSync(`${d}opportunities.json`)) ?? CANDIDATES[1]!;
 
 export interface Dataset {

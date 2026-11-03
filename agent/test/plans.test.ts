@@ -1,0 +1,90 @@
+import { createHmac } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { billingUpdate, firstChargeAt, subscriptionIdFor, userIdFromSubscription, verifyWebhook } from "../src/billing";
+import { takeChat, usedToday } from "../src/limits";
+import { entitlement, istDay } from "../src/plans";
+
+const DAY = 24 * 3600 * 1000;
+const at = (iso: string) => Date.parse(iso);
+
+describe("entitlement", () => {
+  it("gives a 30-day trial to sign-ups before 25 Nov 2026 IST", () => {
+    const created = at("2026-11-24T23:59:00+05:30");
+    expect(entitlement({ createdAt: created }, created + 29 * DAY)).toMatchObject({ plan: "trial", dailyLimit: 15, trialEndsAt: created + 30 * DAY });
+    expect(entitlement({ createdAt: created }, created + 31 * DAY).plan).toBe("free");
+  });
+
+  it("gives no trial to later sign-ups", () => {
+    const created = at("2026-11-25T00:00:00+05:30");
+    expect(entitlement({ createdAt: created }, created + DAY)).toMatchObject({ plan: "free", dailyLimit: 2, trialEndsAt: null });
+  });
+
+  it("treats paid access as paid, during or after a trial", () => {
+    const now = at("2026-12-30T10:00:00Z");
+    expect(entitlement({ createdAt: at("2026-12-01T00:00:00Z"), paidUntil: now + DAY }, now).plan).toBe("paid");
+    expect(entitlement({ createdAt: at("2026-12-01T00:00:00Z"), paidUntil: now - 1 }, now).plan).toBe("free");
+    expect(entitlement(null, now).plan).toBe("free");
+  });
+});
+
+describe("daily limits", () => {
+  it("allows a free user 2 chats per IST day", async () => {
+    const now = at("2026-12-01T10:00:00+05:30");
+    const who = `test-${Math.random()}`;
+    expect(await takeChat(who, "free", 2, now)).toBe("ok");
+    expect(await takeChat(who, "free", 2, now)).toBe("ok");
+    expect(await takeChat(who, "free", 2, now)).toBe("user");
+    expect(await usedToday(who, now)).toBe(2);
+    // Midnight IST starts a new day.
+    expect(await takeChat(who, "free", 2, at("2026-12-02T00:00:01+05:30"))).toBe("ok");
+  });
+
+  it("uses the IST date", () => {
+    expect(istDay(at("2026-12-01T19:00:00Z"))).toBe("2026-12-02");
+  });
+});
+
+describe("Cashfree billing", () => {
+  it("round-trips the Clerk user id through the subscription id", () => {
+    const id = subscriptionIdFor("user_2abcDEF123");
+    expect(id).toMatch(/^gk-2abcDEF123-[a-z0-9]+$/);
+    expect(userIdFromSubscription(id)).toBe("user_2abcDEF123");
+    expect(userIdFromSubscription("someone-else")).toBeNull();
+  });
+
+  it("charges first when the trial ends, never within 26 hours", () => {
+    const now = at("2026-11-20T00:00:00Z");
+    expect(firstChargeAt(now + 10 * DAY, now)).toBe(now + 10 * DAY);
+    expect(firstChargeAt(null, now)).toBe(now + 26 * 3600 * 1000);
+  });
+
+  it("verifies the webhook signature over timestamp + raw body", () => {
+    const body = Buffer.from('{"type":"SUBSCRIPTION_PAYMENT_SUCCESS"}');
+    const sig = createHmac("sha256", "secret").update(`1700000000${body}`).digest("base64");
+    expect(verifyWebhook(body, "1700000000", sig, "secret")).toBe(true);
+    expect(verifyWebhook(body, "1700000001", sig, "secret")).toBe(false);
+    expect(verifyWebhook(body, "1700000000", undefined, "secret")).toBe(false);
+  });
+
+  it("extends paid access on each monthly charge, not on the ₹1 authorisation", () => {
+    const now = at("2026-12-01T00:00:00Z");
+    const sub = "gk-2abc-xyz";
+    const charge = { type: "SUBSCRIPTION_PAYMENT_SUCCESS", data: { subscription_id: sub, payment_status: "SUCCESS", payment_type: "CHARGE" } };
+    expect(billingUpdate(charge, 0, now)).toEqual({ userId: "user_2abc", subscriptionId: sub, paidUntil: now + 33 * DAY });
+    // Never shortens access that already runs longer.
+    expect(billingUpdate(charge, now + 60 * DAY, now)?.paidUntil).toBe(now + 60 * DAY);
+    expect(billingUpdate({ ...charge, data: { ...charge.data, payment_type: "AUTH" } }, 0, now)).toBeNull();
+  });
+
+  it("grants access from mandate approval until just after the first charge", () => {
+    const now = at("2026-12-01T00:00:00Z");
+    const update = billingUpdate(
+      { type: "SUBSCRIPTION_STATUS_CHANGED", data: { subscription_details: { subscription_id: "gk-2abc-xyz", subscription_status: "ACTIVE", subscription_first_charge_time: "2026-12-10T10:00:00" } } },
+      0,
+      now,
+    );
+    expect(update?.paidUntil).toBe(at("2026-12-10T10:00:00+05:30") + 2 * DAY);
+    const cancelled = billingUpdate({ type: "SUBSCRIPTION_STATUS_CHANGED", data: { subscription_details: { subscription_id: "gk-2abc-xyz", subscription_status: "CANCELLED" } } }, 0, now);
+    expect(cancelled).toEqual({ userId: "user_2abc", subscriptionId: "gk-2abc-xyz", subscriptionStatus: "CANCELLED" });
+  });
+});

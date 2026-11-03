@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AccountMenu } from "./account";
 import { loadDataset, type Dataset } from "./data";
 import { AdvisorView } from "./AdvisorView";
 import { FundingView } from "./FundingView";
@@ -67,6 +68,7 @@ export default function App() {
               </button>
             ))}
           </nav>
+          <AccountMenu />
           <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle dark mode" title="Toggle dark mode">
             ◐
           </button>

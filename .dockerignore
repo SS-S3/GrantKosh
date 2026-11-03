@@ -10,3 +10,5 @@ agent/test
 agent/.env
 **/*.log
 .DS_Store
+deploy
+.vercel

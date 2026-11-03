@@ -1,12 +1,13 @@
 # Render Blueprint: Dashboard → New → Blueprint → pick this repo.
-# Starter plan (US$7/month) never sleeps and gives zero-downtime deploys gated on the health check.
-# To run for free instead, set `plan: free`: the service then sleeps after ~15 min idle and the
-# first visit after that takes ~30-60 s to wake.
+# Free plan: the service sleeps after 15 min without inbound traffic. Keep it awake with an external
+# monitor that requests /api/health every 5 min (see DEPLOY.md, "Keep the free service awake").
+# One service running all month uses ~744 of the 750 free instance hours per workspace.
+# For no sleep and no shared-hours limit, set `plan: starter` (paid).
 services:
   - name: grantkosh
     type: web
     runtime: node
-    plan: starter
+    plan: free
     region: singapore # closest Render region to India
     buildCommand: npm ci --no-audit --no-fund && npm run build:prod
     startCommand: npm start
