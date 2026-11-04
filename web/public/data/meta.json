@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-03T07:08:08.344Z",
-  "opportunities": 5600,
-  "investors": 2054,
+  "generatedAt": "2026-11-04T06:51:36.858Z",
+  "opportunities": 5599,
+  "investors": 2055,
   "sources": [
     {
       "id": "curated",
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 49,
+      "durationMs": 76,
       "error": null,
-      "lastSuccess": "2026-11-03T07:01:59.762Z"
+      "lastSuccess": "2026-11-04T06:45:29.117Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 17183,
+      "durationMs": 16126,
       "error": null,
-      "lastSuccess": "2026-11-03T07:02:16.897Z"
+      "lastSuccess": "2026-11-04T06:45:45.168Z"
     },
     {
       "id": "idex",
@@ -37,12 +37,12 @@
       "kind": "opportunities",
       "homepage": "https://idex.gov.in/challenges",
       "description": "Ministry of Defence innovation challenges (DISC, ADITI, iDEX PRIME, DRISHTI) with grants for startups and MSMEs.",
-      "ok": true,
-      "stale": false,
-      "count": 34,
+      "ok": false,
+      "stale": true,
+      "count": 33,
       "rejected": 0,
-      "durationMs": 28644,
-      "error": null,
+      "durationMs": 41534,
+      "error": "fetch failed",
       "lastSuccess": "2026-11-03T07:02:28.359Z"
     },
     {
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1093,
+      "count": 1094,
       "rejected": 0,
-      "durationMs": 35412,
+      "durationMs": 37299,
       "error": null,
-      "lastSuccess": "2026-11-03T07:02:35.127Z"
+      "lastSuccess": "2026-11-04T06:46:06.343Z"
     },
     {
       "id": "ukri",
@@ -67,11 +67,11 @@
       "description": "Open and upcoming UK Research and Innovation and Innovate UK funding opportunities.",
       "ok": true,
       "stale": false,
-      "count": 145,
+      "count": 147,
       "rejected": 0,
-      "durationMs": 13312,
+      "durationMs": 13132,
       "error": null,
-      "lastSuccess": "2026-11-03T07:02:13.027Z"
+      "lastSuccess": "2026-11-04T06:45:42.176Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 485,
+      "count": 487,
       "rejected": 0,
-      "durationMs": 15204,
+      "durationMs": 18321,
       "error": null,
-      "lastSuccess": "2026-11-03T07:02:14.919Z"
+      "lastSuccess": "2026-11-04T06:45:47.366Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1460,
+      "count": 1454,
       "rejected": 0,
-      "durationMs": 368504,
+      "durationMs": 367629,
       "error": null,
-      "lastSuccess": "2026-11-03T07:08:08.220Z"
+      "lastSuccess": "2026-11-04T06:51:36.675Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 1297,
+      "durationMs": 1183,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -123,11 +123,11 @@
       "description": "Every SEBI-registered Alternative Investment Fund: venture capital, angel, private equity, venture debt and other funds.",
       "ok": true,
       "stale": false,
-      "count": 2054,
+      "count": 2055,
       "rejected": 0,
-      "durationMs": 68138,
+      "durationMs": 65387,
       "error": null,
-      "lastSuccess": "2026-11-03T07:03:07.855Z"
+      "lastSuccess": "2026-11-04T06:46:34.434Z"
     }
   ],
   "fxToInr": {
