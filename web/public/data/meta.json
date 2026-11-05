@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-04T06:51:36.858Z",
-  "opportunities": 5599,
+  "generatedAt": "2026-11-05T07:11:09.283Z",
+  "opportunities": 5585,
   "investors": 2055,
   "sources": [
     {
@@ -13,9 +13,9 @@
       "stale": false,
       "count": 19,
       "rejected": 0,
-      "durationMs": 76,
+      "durationMs": 87,
       "error": null,
-      "lastSuccess": "2026-11-04T06:45:29.117Z"
+      "lastSuccess": "2026-11-05T07:05:03.965Z"
     },
     {
       "id": "birac",
@@ -27,9 +27,9 @@
       "stale": false,
       "count": 11,
       "rejected": 0,
-      "durationMs": 16126,
+      "durationMs": 17050,
       "error": null,
-      "lastSuccess": "2026-11-04T06:45:45.168Z"
+      "lastSuccess": "2026-11-05T07:05:20.929Z"
     },
     {
       "id": "idex",
@@ -37,13 +37,13 @@
       "kind": "opportunities",
       "homepage": "https://idex.gov.in/challenges",
       "description": "Ministry of Defence innovation challenges (DISC, ADITI, iDEX PRIME, DRISHTI) with grants for startups and MSMEs.",
-      "ok": false,
-      "stale": true,
-      "count": 33,
+      "ok": true,
+      "stale": false,
+      "count": 34,
       "rejected": 0,
-      "durationMs": 41534,
-      "error": "fetch failed",
-      "lastSuccess": "2026-11-03T07:02:28.359Z"
+      "durationMs": 28749,
+      "error": null,
+      "lastSuccess": "2026-11-05T07:05:32.629Z"
     },
     {
       "id": "myscheme",
@@ -53,11 +53,11 @@
       "description": "National catalogue of central and state government schemes: business, entrepreneurship, science/IT, and founder-relevant finance, agriculture, skills and women's schemes.",
       "ok": true,
       "stale": false,
-      "count": 1094,
+      "count": 1095,
       "rejected": 0,
-      "durationMs": 37299,
+      "durationMs": 34260,
       "error": null,
-      "lastSuccess": "2026-11-04T06:46:06.343Z"
+      "lastSuccess": "2026-11-05T07:05:38.141Z"
     },
     {
       "id": "ukri",
@@ -67,11 +67,11 @@
       "description": "Open and upcoming UK Research and Innovation and Innovate UK funding opportunities.",
       "ok": true,
       "stale": false,
-      "count": 147,
+      "count": 143,
       "rejected": 0,
-      "durationMs": 13132,
+      "durationMs": 12818,
       "error": null,
-      "lastSuccess": "2026-11-04T06:45:42.176Z"
+      "lastSuccess": "2026-11-05T07:05:16.699Z"
     },
     {
       "id": "eu-funding",
@@ -81,11 +81,11 @@
       "description": "Open and forthcoming EU grant topics (Horizon Europe, EIC, Digital Europe…) and cascade-funding open calls.",
       "ok": true,
       "stale": false,
-      "count": 487,
+      "count": 484,
       "rejected": 0,
-      "durationMs": 18321,
+      "durationMs": 13841,
       "error": null,
-      "lastSuccess": "2026-11-04T06:45:47.366Z"
+      "lastSuccess": "2026-11-05T07:05:17.723Z"
     },
     {
       "id": "grants-gov",
@@ -95,11 +95,11 @@
       "description": "All posted and forecasted US federal grant opportunities, incl. SBIR/STTR small-business programs.",
       "ok": true,
       "stale": false,
-      "count": 1454,
+      "count": 1446,
       "rejected": 0,
-      "durationMs": 367629,
+      "durationMs": 365215,
       "error": null,
-      "lastSuccess": "2026-11-04T06:51:36.675Z"
+      "lastSuccess": "2026-11-05T07:11:09.098Z"
     },
     {
       "id": "discovered",
@@ -111,7 +111,7 @@
       "stale": true,
       "count": 2358,
       "rejected": 0,
-      "durationMs": 1183,
+      "durationMs": 1261,
       "error": "HTTP 403 for https://www.startupgrantsindia.com/api/sitemap/grants",
       "lastSuccess": "2026-10-07T22:40:26.361Z"
     },
@@ -125,9 +125,9 @@
       "stale": false,
       "count": 2055,
       "rejected": 0,
-      "durationMs": 65387,
+      "durationMs": 67131,
       "error": null,
-      "lastSuccess": "2026-11-04T06:46:34.434Z"
+      "lastSuccess": "2026-11-05T07:06:11.015Z"
     }
   ],
   "fxToInr": {
